@@ -104,7 +104,8 @@ def pick_teaser_config(memory: dict) -> tuple[str, str]:
     position = memory.get("difficulty_cycle_position", 0)
     difficulty = DIFFICULTY_CYCLE[position % len(DIFFICULTY_CYCLE)]
 
-    print(f"[Memory] Today's brain teaser: category='{category}', difficulty='{difficulty}'")
+    print(
+        f"[Memory] Today's brain teaser: category='{category}', difficulty='{difficulty}'")
     print(f"[Memory] Recent categories (excluded): {recent}")
 
     return category, difficulty
@@ -116,7 +117,8 @@ def update_memory(memory: dict, category: str) -> dict:
     memory["recent_categories"] = recent[-3:]
 
     position = memory.get("difficulty_cycle_position", 0)
-    memory["difficulty_cycle_position"] = (position + 1) % len(DIFFICULTY_CYCLE)
+    memory["difficulty_cycle_position"] = (
+        position + 1) % len(DIFFICULTY_CYCLE)
 
     history = memory.get("history", [])
     history.append({
@@ -160,7 +162,10 @@ async def post_to_webhook(webhook_url: str, message: str) -> bool:
         return False
 
 
-def post_with_thread_reply(channel: str, message: str, thread_reply: str) -> bool:
+def post_with_thread_reply(
+        channel: str,
+        message: str,
+        thread_reply: str) -> bool:
     """
     Post a message to a Slack channel using the Bot API,
     then reply in its thread with a follow-up message.
@@ -213,12 +218,17 @@ def parse_sections(final_text: str) -> dict[str, str]:
         ##CALENDAR##    -> #general via Bot API (plain message)
         ##BRAINTEASER## -> #general via Bot API (with thread answer)
     """
-    sections = {"sports": "", "calendar": "", "teaser_question": "", "teaser_answer": ""}
+    sections = {
+        "sports": "",
+        "calendar": "",
+        "teaser_question": "",
+        "teaser_answer": ""}
 
     print(f"[Parser] Parsing response ({len(final_text)} chars)")
 
     def find_marker(text: str, marker: str) -> list[int]:
-        return [i for i in range(len(text)) if text[i:i+len(marker)] == marker]
+        return [i for i in range(
+            len(text)) if text[i:i + len(marker)] == marker]
 
     sports_pos = find_marker(final_text, "##SPORTS##")
     calendar_pos = find_marker(final_text, "##CALENDAR##")
@@ -230,7 +240,8 @@ def parse_sections(final_text: str) -> dict[str, str]:
     try:
         if sports_pos:
             start = sports_pos[0] + len("##SPORTS##")
-            end = calendar_pos[0] if calendar_pos else teaser_pos[0] if teaser_pos else len(final_text)
+            end = calendar_pos[0] if calendar_pos else teaser_pos[0] if teaser_pos else len(
+                final_text)
             sections["sports"] = final_text[start:end].strip()
 
         if calendar_pos:
@@ -292,8 +303,10 @@ async def run_agent(
     all_mcp_tools = calendar_tools_response.tools + sports_tools_response.tools
     all_tools = mcp_tools_to_anthropic(all_mcp_tools)
 
-    print(f"Calendar server tools: {[t.name for t in calendar_tools_response.tools]}")
-    print(f"Sports server tools:   {[t.name for t in sports_tools_response.tools]}")
+    print(
+        f"Calendar server tools: {[t.name for t in calendar_tools_response.tools]}")
+    print(
+        f"Sports server tools:   {[t.name for t in sports_tools_response.tools]}")
     print(f"Total tools available to Claude: {len(all_tools)}")
 
     messages: list[dict] = [
@@ -367,11 +380,16 @@ async def run_agent(
                     continue
 
                 print(f"\n[Tool call] '{block.name}'")
-                print(f"[Tool call] Arguments: {json.dumps(block.input, indent=2)}")
+                print(
+                    f"[Tool call] Arguments: {
+                        json.dumps(
+                            block.input,
+                            indent=2)}")
 
                 session = tool_routing.get(block.name)
                 if session is None:
-                    result_text = f"Error: no server found for tool '{block.name}'"
+                    result_text = f"Error: no server found for tool '{
+                        block.name}'"
                     print(f"[Tool error] {result_text}")
                 else:
                     tool_response = await session.call_tool(block.name, block.input)
@@ -381,7 +399,8 @@ async def run_agent(
                         if first is not None and first.type == "text"
                         else "No result"
                     )
-                    print(f"[Tool result] {result_text[:200]}{'...' if len(result_text) > 200 else ''}")
+                    print(
+                        f"[Tool result] {result_text[:200]}{'...' if len(result_text) > 200 else ''}")
 
                 tool_results.append({
                     "type": "tool_result",
