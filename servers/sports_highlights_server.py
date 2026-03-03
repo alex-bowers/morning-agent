@@ -55,6 +55,7 @@ def _parse_iso8601_duration(duration: str) -> int:
     seconds = int(match.group(3) or 0)
     return hours * 3600 + minutes * 60 + seconds
 
+
 # Unofficial API
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/{sport}/{league}/scoreboard"
 
@@ -254,7 +255,12 @@ async def search_youtube_highlights(
             logger.warning(f"No YouTube results found for: {query}")
             return None
 
-        video_ids = [item.get("id", {}).get("videoId") for item in items if item.get("id", {}).get("videoId")]
+        video_ids = [
+            item.get(
+                "id",
+                {}).get("videoId") for item in items if item.get(
+                "id",
+                {}).get("videoId")]
         durations = {}
         if video_ids:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -266,19 +272,29 @@ async def search_youtube_highlights(
                 videos_response.raise_for_status()
                 for v in videos_response.json().get("items", []):
                     vid_id = v.get("id")
-                    iso_duration = v.get("contentDetails", {}).get("duration", "PT0S")
+                    iso_duration = v.get(
+                        "contentDetails", {}).get(
+                        "duration", "PT0S")
                     durations[vid_id] = _parse_iso8601_duration(iso_duration)
 
         is_long_enough = [
-            item for item in items
-            if durations.get(item.get("id", {}).get("videoId"), 0) >= MIN_DURATION_SECONDS
-        ]
+            item for item in items if durations.get(
+                item.get(
+                    "id",
+                    {}).get("videoId"),
+                0) >= MIN_DURATION_SECONDS]
 
         if not is_long_enough:
-            logger.warning(f"No YouTube results over {MIN_DURATION_SECONDS // 60} minutes found for: {query}")
+            logger.warning(
+                f"No YouTube results over {
+                    MIN_DURATION_SECONDS //
+                    60} minutes found for: {query}")
             return None
 
-        scored = sorted(is_long_enough, key=_score_youtube_result, reverse=True)
+        scored = sorted(
+            is_long_enough,
+            key=_score_youtube_result,
+            reverse=True)
         best = scored[0]
 
         video_id = best.get("id", {}).get("videoId")
@@ -288,10 +304,11 @@ async def search_youtube_highlights(
             return None
 
         logger.info(
-            f"Selected highlight for {team_name}: '{snippet.get('title')}' "
-            f"from '{snippet.get('channelTitle')}' "
-            f"(score: {_score_youtube_result(best)}, duration: {durations.get(video_id)}s)"
-        )
+            f"Selected highlight for {team_name}: '{
+                snippet.get('title')}' " f"from '{
+                snippet.get('channelTitle')}' " f"(score: {
+                _score_youtube_result(best)}, duration: {
+                    durations.get(video_id)}s)")
 
         return {
             "title": snippet.get("title", "Highlights"),
