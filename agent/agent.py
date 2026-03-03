@@ -10,7 +10,6 @@ Run with:
 
 Requirements in .env:
     ANTHROPIC_API_KEY=your_key_here
-    GOOGLE_CREDENTIALS_PATH=/absolute/path/to/agent/credentials.json
     GOOGLE_SHARED_CALENDAR_ID=your-shared-calendar@group.calendar.google.com
     SLACK_BOT_TOKEN=xoxb-your-token-here
     SLACK_CHANNEL_GENERAL=C08XXXXXXXXX
@@ -308,6 +307,7 @@ async def run_agent(
                 "Check if any New England sports teams (Patriots, Bruins, "
                 "Celtics, Red Sox, Revolution) played yesterday. For each "
                 "team that played, include the YouTube highlight link. "
+                "Avoid including any scores or spoilers in the text - just the highlights. "
                 "If no teams played, say so.\n"
                 "##SPORTS##\n\n"
 
