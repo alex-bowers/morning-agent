@@ -68,6 +68,51 @@ TEASER_CATEGORIES = [
     "Visual/spatial puzzle (described in text)"
 ]
 
+TEASER_SUB_TYPES = {
+    "Riddle": [
+        "classic object riddle",
+        "nature riddle",
+        "person or profession riddle",
+        "time or abstract concept riddle",
+        "double-meaning wordplay riddle",
+    ],
+    "Logic puzzle": [
+        "grid/table deduction puzzle",
+        "truth-tellers and liars puzzle",
+        "ordering or sequencing puzzle",
+        "weighing or balance puzzle",
+        "river-crossing or constraint puzzle",
+    ],
+    "Lateral thinking": [
+        "strange situation explained by a single key fact",
+        "detective-style 'what happened?' scenario",
+        "everyday object used in an unexpected way",
+        "paradox or counterintuitive outcome scenario",
+        "ambiguous sentence or missing context puzzle",
+    ],
+    "Maths puzzle": [
+        "algebra puzzle",
+        "number theory or divisibility puzzle",
+        "combinatorics or counting puzzle",
+        "rate, ratio or proportion puzzle",
+        "geometry or area puzzle",
+    ],
+    "Word puzzle": [
+        "anagram challenge",
+        "cryptic definition or double meaning",
+        "wordplay based on letter manipulation (remove, reverse, insert)",
+        "compound word or portmanteau puzzle",
+        "homophone or homophones-in-context puzzle",
+    ],
+    "Visual/spatial puzzle (described in text)": [
+        "shape counting or rearrangement puzzle",
+        "matchstick or toothpick puzzle",
+        "folding and cutting paper puzzle",
+        "rotation or reflection puzzle",
+        "pattern continuation or odd-one-out puzzle",
+    ],
+}
+
 DIFFICULTY_CYCLE = ["Hard", "Medium", "Medium", "Medium"]
 
 
@@ -92,7 +137,7 @@ def save_memory(memory: dict) -> None:
     print(f"[Memory] Saved brain teaser memory to {MEMORY_FILE}")
 
 
-def pick_teaser_config(memory: dict) -> tuple[str, str]:
+def pick_teaser_config(memory: dict) -> tuple[str, str, str]:
     recent = memory.get("recent_categories", [])
     available = [c for c in TEASER_CATEGORIES if c not in recent]
 
@@ -103,14 +148,23 @@ def pick_teaser_config(memory: dict) -> tuple[str, str]:
     position = memory.get("difficulty_cycle_position", 0)
     difficulty = DIFFICULTY_CYCLE[position % len(DIFFICULTY_CYCLE)]
 
+    recent_sub_types = memory.get("recent_sub_types", {}).get(category, [])
+    all_sub_types = TEASER_SUB_TYPES[category]
+    available_sub_types = [s for s in all_sub_types if s not in recent_sub_types]
+    if not available_sub_types:
+        available_sub_types = all_sub_types
+    sub_type = random.choice(available_sub_types)
+
     print(
-        f"[Memory] Today's brain teaser: category='{category}', difficulty='{difficulty}'")
+        f"[Memory] Today's brain teaser: category='{category}', "
+        f"sub_type='{sub_type}', difficulty='{difficulty}'")
     print(f"[Memory] Recent categories (excluded): {recent}")
+    print(f"[Memory] Recent sub-types for '{category}' (excluded): {recent_sub_types}")
 
-    return category, difficulty
+    return category, sub_type, difficulty
 
 
-def update_memory(memory: dict, category: str) -> dict:
+def update_memory(memory: dict, category: str, sub_type: str) -> dict:
     recent = memory.get("recent_categories", [])
     recent.append(category)
     memory["recent_categories"] = recent[-3:]
@@ -119,10 +173,17 @@ def update_memory(memory: dict, category: str) -> dict:
     memory["difficulty_cycle_position"] = (
         position + 1) % len(DIFFICULTY_CYCLE)
 
+    recent_sub_types = memory.get("recent_sub_types", {})
+    category_sub_types = recent_sub_types.get(category, [])
+    category_sub_types.append(sub_type)
+    recent_sub_types[category] = category_sub_types[-3:]
+    memory["recent_sub_types"] = recent_sub_types
+
     history = memory.get("history", [])
     history.append({
         "date": str(date.today()),
         "category": category,
+        "sub_type": sub_type,
         "difficulty": DIFFICULTY_CYCLE[position % len(DIFFICULTY_CYCLE)]
     })
     memory["history"] = history
@@ -274,6 +335,7 @@ async def run_agent(
     sports_session: ClientSession,
     anthropic_client: anthropic.Anthropic,
     teaser_category: str,
+    teaser_sub_type: str,
     teaser_difficulty: str
 ) -> str:
     """
@@ -285,6 +347,7 @@ async def run_agent(
         sports_session:     Active MCP session for the sports highlights server
         anthropic_client:   Anthropic API client
         teaser_category:    Brain teaser category chosen from memory
+        teaser_sub_type:    Brain teaser sub-type for variety within the category
         teaser_difficulty:  Brain teaser difficulty from the cycle
     """
 
@@ -331,7 +394,8 @@ async def run_agent(
                 "##CALENDAR##\n\n"
 
                 f"##BRAINTEASER##\n"
-                f"Generate a {teaser_difficulty} difficulty {teaser_category}. "
+                f"Generate a {teaser_difficulty} difficulty {teaser_category} "
+                f"of the sub-type: {teaser_sub_type}. "
                 f"Format it exactly like this - "
                 f"question text | answer text "
                 f"(a single pipe character separating question from answer, "
@@ -418,7 +482,7 @@ async def main():
     print("=== Morning Agent ===")
 
     memory = load_memory()
-    teaser_category, teaser_difficulty = pick_teaser_config(memory)
+    teaser_category, teaser_sub_type, teaser_difficulty = pick_teaser_config(memory)
 
     calendar_server_params = StdioServerParameters(
         command=VENV_PYTHON,
@@ -451,6 +515,7 @@ async def main():
                         sports_session,
                         anthropic_client,
                         teaser_category,
+                        teaser_sub_type,
                         teaser_difficulty
                     )
 
@@ -476,7 +541,7 @@ async def main():
     else:
         print("[Slack] No brain teaser content to post")
 
-    memory = update_memory(memory, teaser_category)
+    memory = update_memory(memory, teaser_category, teaser_sub_type)
     save_memory(memory)
 
     print("\n=== Done ===")
