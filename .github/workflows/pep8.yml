@@ -12,6 +12,7 @@ permissions:
 jobs:
   pep8:
     runs-on: ubuntu-latest
+    if: github.event.head_commit.author.username != 'github-actions[bot]'
 
     steps:
       - name: Checkout code
