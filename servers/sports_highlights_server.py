@@ -91,7 +91,11 @@ TRACKED_TEAMS = {
     }
 }
 
-async def fetch_espn_scoreboard(sport: str, league: str, game_date: str) -> dict:
+
+async def fetch_espn_scoreboard(
+        sport: str,
+        league: str,
+        game_date: str) -> dict:
     """
     Args:
         sport:     e.g. 'football', 'basketball', 'hockey', 'baseball', 'soccer'
@@ -129,8 +133,10 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
         for competition in competitions:
             competitors = competition.get("competitors", [])
 
-            home_team = next((c for c in competitors if c.get("homeAway") == "home"), None)
-            away_team = next((c for c in competitors if c.get("homeAway") == "away"), None)
+            home_team = next(
+                (c for c in competitors if c.get("homeAway") == "home"), None)
+            away_team = next(
+                (c for c in competitors if c.get("homeAway") == "away"), None)
 
             if not home_team or not away_team:
                 continue
@@ -146,7 +152,9 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
 
             our_team = home_team if team_name.lower() == home_name.lower() else away_team
             opponent = away_team if team_name.lower() == home_name.lower() else home_team
-            opponent_name = opponent.get("team", {}).get("displayName", "Unknown")
+            opponent_name = opponent.get(
+                "team", {}).get(
+                "displayName", "Unknown")
 
             our_score = int(our_team.get("score", 0) or 0)
             their_score = int(opponent.get("score", 0) or 0)
@@ -170,6 +178,7 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
             }
 
     return None
+
 
 def _score_youtube_result(item: dict) -> int:
     """
@@ -207,7 +216,10 @@ def _score_youtube_result(item: dict) -> int:
     return score
 
 
-async def search_youtube_highlights(team_name: str, game_date: str, opponent: str) -> dict | None:
+async def search_youtube_highlights(
+        team_name: str,
+        game_date: str,
+        opponent: str) -> dict | None:
     """
     Search YouTube for highlight videos for a specific game.
 
@@ -301,7 +313,8 @@ class SportsDataManager:
     Orchestrates ESPN and YouTube API calls to produce highlight results.
     """
 
-    async def get_teams_that_played(self, game_date: str | None = None) -> list[str]:
+    async def get_teams_that_played(
+            self, game_date: str | None = None) -> list[str]:
         """
         Check ESPN for each tracked team and return those that played
         on the given date (defaults to yesterday).
@@ -335,7 +348,10 @@ class SportsDataManager:
 
             if game:
                 teams_that_played.append(team_name)
-                logger.info(f"Found game: {team_name} vs {game['opponent']} ({game['result']})")
+                logger.info(
+                    f"Found game: {team_name} vs {
+                        game['opponent']} ({
+                        game['result']})")
 
         return sorted(teams_that_played)
 

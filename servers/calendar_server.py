@@ -51,6 +51,7 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 LOCAL_TIMEZONE = "Europe/London"
 
+
 def get_calendar_service():
     """
     Authenticate with Google Calendar API and return a service object.
@@ -122,7 +123,8 @@ class CalendarDataManager:
                 (GOOGLE_SHARED_CALENDAR_ID, "Shared")
             )
         else:
-            logger.warning("GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
+            logger.warning(
+                "GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
 
         all_events = []
 
@@ -138,7 +140,9 @@ class CalendarDataManager:
                 ).execute()
 
                 events = result.get("items", [])
-                logger.info(f"Fetched {len(events)} events from {calendar_label} calendar")
+                logger.info(
+                    f"Fetched {
+                        len(events)} events from {calendar_label} calendar")
 
                 for event in events:
                     parsed = self._parse_event(event, calendar_label)
@@ -146,7 +150,8 @@ class CalendarDataManager:
                         all_events.append(parsed)
 
             except HttpError as e:
-                logger.error(f"Google Calendar API error for {calendar_label}: {e}")
+                logger.error(
+                    f"Google Calendar API error for {calendar_label}: {e}")
                 continue
 
         all_events.sort(key=lambda e: e["start_time"])
