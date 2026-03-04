@@ -114,7 +114,8 @@ def pick_teaser_config(memory: dict) -> tuple[str, str, str]:
 
     recent_sub_types = memory.get("recent_sub_types", {}).get(category, [])
     all_sub_types = TEASER_SUB_TYPES[category]
-    available_sub_types = [s for s in all_sub_types if s not in recent_sub_types]
+    available_sub_types = [
+        s for s in all_sub_types if s not in recent_sub_types]
     if not available_sub_types:
         available_sub_types = all_sub_types
     sub_type = random.choice(available_sub_types)
@@ -123,7 +124,8 @@ def pick_teaser_config(memory: dict) -> tuple[str, str, str]:
         f"[Memory] Today's brain teaser: category='{category}', "
         f"sub_type='{sub_type}', difficulty='{difficulty}'")
     print(f"[Memory] Recent categories (excluded): {recent}")
-    print(f"[Memory] Recent sub-types for '{category}' (excluded): {recent_sub_types}")
+    print(
+        f"[Memory] Recent sub-types for '{category}' (excluded): {recent_sub_types}")
 
     return category, sub_type, difficulty
 
