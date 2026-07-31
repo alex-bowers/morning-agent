@@ -34,10 +34,14 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from brain_teaser import (
+    get_next_teaser,
     load_memory,
+    load_pool,
+    pool_needs_regeneration,
+    record_batch_completed,
+    record_teaser_in_history,
     save_memory,
-    pick_teaser_config,
-    update_memory,
+    save_pool,
 )
 
 logging.basicConfig(
@@ -166,49 +170,26 @@ def parse_sections(final_text: str) -> dict[str, str]:
 
         ##SPORTS##      -> #sports-highlights via webhook
         ##CALENDAR##    -> #general via Bot API (plain message)
-        ##BRAINTEASER## -> #general via Bot API (with thread answer)
     """
     sections: dict[str, str] = {
         "sports": "",
         "calendar": "",
-        "teaser_question": "",
-        "teaser_answer": "",
     }
 
     logger.info("Parsing response (%d chars)", len(final_text))
 
-    # Use str.split on each marker to extract content between them
     try:
         if "##SPORTS##" in final_text:
             after_sports = final_text.split("##SPORTS##", 1)[1]
             end = len(after_sports)
-            for marker in ("##CALENDAR##", "##BRAINTEASER##"):
-                pos = after_sports.find(marker)
-                if pos != -1 and pos < end:
-                    end = pos
+            pos = after_sports.find("##CALENDAR##")
+            if pos != -1 and pos < end:
+                end = pos
             sections["sports"] = after_sports[:end].strip()
 
         if "##CALENDAR##" in final_text:
             after_calendar = final_text.split("##CALENDAR##", 1)[1]
-            end = len(after_calendar)
-            pos = after_calendar.find("##BRAINTEASER##")
-            if pos != -1:
-                end = pos
-            sections["calendar"] = after_calendar[:end].strip()
-
-        if "##BRAINTEASER##" in final_text:
-            after_teaser = final_text.split("##BRAINTEASER##", 1)[1].strip()
-            # Handle the case where the marker appears again at the end
-            if "##BRAINTEASER##" in after_teaser:
-                after_teaser = after_teaser.split("##BRAINTEASER##")[0].strip()
-
-            if "|" in after_teaser:
-                parts = after_teaser.split("|", 1)
-                sections["teaser_question"] = parts[0].strip()
-                sections["teaser_answer"] = f"Answer: {parts[1].strip()}"
-            else:
-                sections["teaser_question"] = after_teaser
-                sections["teaser_answer"] = "(No answer provided)"
+            sections["calendar"] = after_calendar.strip()
 
     except Exception as e:
         logger.error("Parser error: %s — sections may be incomplete", e)
@@ -220,9 +201,6 @@ async def run_agent(
     calendar_session: ClientSession,
     sports_session: ClientSession,
     anthropic_client: anthropic.Anthropic,
-    teaser_category: str,
-    teaser_sub_type: str,
-    teaser_difficulty: str,
 ) -> str:
     """
     The agent loop — routes tool calls across two MCP servers and
@@ -232,9 +210,6 @@ async def run_agent(
         calendar_session:   Active MCP session for the Google Calendar server
         sports_session:     Active MCP session for the sports highlights server
         anthropic_client:   Anthropic API client
-        teaser_category:    Brain teaser category chosen from memory
-        teaser_sub_type:    Brain teaser sub-type for variety within the category
-        teaser_difficulty:  Brain teaser difficulty from the cycle
     """
 
     logger.info("--- Discovering tools from both MCP servers ---")
@@ -283,15 +258,6 @@ async def run_agent(
                 "of my day. List each event with its time and title. "
                 "If I have no events today, say so.\n"
                 "##CALENDAR##\n\n"
-
-                f"##BRAINTEASER##\n"
-                f"Generate a {teaser_difficulty} difficulty {teaser_category} "
-                f"of the sub-type: {teaser_sub_type}. "
-                f"Format it exactly like this - "
-                f"question text | answer text "
-                f"(a single pipe character separating question from answer, "
-                f"everything on one line, no labels).\n"
-                "##BRAINTEASER##\n\n"
 
                 "Important: keep all markers exactly as shown. "
                 "They are used to route each section automatically."
@@ -374,8 +340,21 @@ async def main():
         )
         return
 
-    memory = load_memory()
-    teaser_category, teaser_sub_type, teaser_difficulty = pick_teaser_config(memory)
+    # --- Brain teaser pool ---
+    pool = load_pool()
+    teaser = get_next_teaser(pool)
+
+    if teaser is None:
+        logger.error(
+            "No teasers available in the pool. "
+            "Run `python agent/generate_teaser_pool.py` to generate a new batch."
+        )
+    elif pool_needs_regeneration(pool):
+        logger.warning(
+            "Teaser pool is running low (%d remaining). "
+            "Run `python agent/generate_teaser_pool.py` soon to replenish.",
+            len(pool["teasers"]) - pool["next_index"],
+        )
 
     calendar_server_params = StdioServerParameters(
         command=PYTHON_EXECUTABLE,
@@ -407,9 +386,6 @@ async def main():
                         calendar_session,
                         sports_session,
                         anthropic_client,
-                        teaser_category,
-                        teaser_sub_type,
-                        teaser_difficulty,
                     )
 
     logger.info("--- Posting to Slack ---")
@@ -425,17 +401,23 @@ async def main():
     else:
         logger.info("No calendar content to post")
 
-    if sections["teaser_question"] and SLACK_CHANNEL_GENERAL:
+    # Post brain teaser from the pool (no Claude generation needed)
+    if teaser and SLACK_CHANNEL_GENERAL:
         post_with_thread_reply(
             SLACK_CHANNEL_GENERAL,
-            sections["teaser_question"],
-            sections["teaser_answer"],
+            teaser["question"],
+            f'Answer: {teaser["answer"]}',
         )
+        # Record in memory for cross-batch dedup
+        memory = load_memory()
+        memory = record_teaser_in_history(memory, teaser)
+        save_memory(memory)
     else:
-        logger.info("No brain teaser content to post")
+        logger.info("No brain teaser to post")
 
-    memory = update_memory(memory, teaser_category, teaser_sub_type)
-    save_memory(memory)
+    # Save pool state (marks this teaser as consumed)
+    if pool.get("teasers"):
+        save_pool(pool)
 
     logger.info("=== Done ===")
 

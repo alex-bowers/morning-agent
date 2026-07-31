@@ -1,21 +1,41 @@
 """
-Brain Teaser Management
-=======================
-Handles brain teaser category/difficulty selection, memory tracking,
-and history management to ensure variety across multiple runs.
+Brain Teaser Management — Pool-Based System
+=============================================
+Manages a pre-generated pool of brain teasers that is created in batch
+(every ~3 months) and consumed one per day. This eliminates repetition
+because the batch generation can see all teasers at once and guarantee
+no duplicates.
+
+Key concepts:
+  - **Pool** (`teaser_pool.json`): Pre-generated teasers consumed sequentially.
+  - **Memory** (`brain_teaser_memory.json`): Audit trail + cross-batch dedup.
+  - **Generation script** (`generate_teaser_pool.py`): Creates a new batch.
+
+Daily usage (in agent.py):
+  1. load_pool() → get_next_teaser(pool) → post to Slack → save_pool(pool)
+  2. Record the posted teaser in memory for cross-batch dedup.
+
+Batch generation (run separately):
+  1. python agent/generate_teaser_pool.py
 """
 
 import json
 import logging
-import random
 from datetime import date
 from pathlib import Path
 
 logger = logging.getLogger("morning_agent.brain_teaser")
 
-MEMORY_FILE = Path(__file__).resolve().parent / "brain_teaser_memory.json"
+AGENT_DIR = Path(__file__).resolve().parent
 
-MAX_HISTORY_ENTRIES = 100
+POOL_FILE = AGENT_DIR / "teaser_pool.json"
+MEMORY_FILE = AGENT_DIR / "brain_teaser_memory.json"
+
+MAX_HISTORY_ENTRIES = 200  # Keep enough for cross-batch dedup
+
+# ---------------------------------------------------------------------------
+# Category & sub-type definitions — used by the generation script
+# ---------------------------------------------------------------------------
 
 TEASER_CATEGORIES = [
     "Riddle",
@@ -71,94 +91,224 @@ TEASER_SUB_TYPES = {
     ],
 }
 
-DIFFICULTY_CYCLE = ["Hard", "Medium", "Medium", "Medium"]
+DIFFICULTY_DISTRIBUTION = {
+    "Easy": 1,
+    "Medium": 3,
+    "Hard": 1,
+}
 
+TEASER_THEMES = [
+    "space & astronomy",
+    "ocean & marine life",
+    "ancient history",
+    "modern technology",
+    "cooking & food",
+    "music & instruments",
+    "geography & travel",
+    "medicine & health",
+    "sports & athletics",
+    "architecture & buildings",
+    "literature & books",
+    "mythology & folklore",
+    "weather & climate",
+    "animals & wildlife",
+    "art & painting",
+    "cinema & film",
+    "fashion & clothing",
+    "gardens & plants",
+    "mountains & climbing",
+    "inventions & discoveries",
+    "languages & linguistics",
+    "mathematics & numbers",
+    "rivers & waterways",
+    "deserts & extremes",
+    "cities & urban life",
+    "forests & woodland",
+    "electricity & magnetism",
+    "photography & optics",
+    "railways & trains",
+    "aviation & flight",
+    "sailing & ships",
+    "minerals & gemstones",
+    "volcanoes & geology",
+    "seasons & cycles",
+    "textiles & weaving",
+    "pottery & ceramics",
+    "chess & board games",
+    "card games & probability",
+    "clocks & timekeeping",
+    "bridges & engineering",
+    "postal systems & communication",
+    "currencies & trade",
+    "constellations & navigation",
+    "fire & energy",
+    "ice & polar regions",
+    "jungles & biodiversity",
+    "chocolate & confectionery",
+    "codes & cryptography",
+    "dances & choreography",
+]
+
+# Minimum number of teasers remaining before we warn about regeneration
+POOL_LOW_THRESHOLD = 5
+
+
+# ---------------------------------------------------------------------------
+# Pool operations
+# ---------------------------------------------------------------------------
+
+def load_pool() -> dict:
+    """
+    Load the teaser pool from the JSON file.
+    Returns a default empty structure if the file doesn't exist yet.
+    """
+    if not POOL_FILE.exists():
+        return {
+            "batch_id": "",
+            "generated_at": "",
+            "next_index": 0,
+            "teasers": [],
+        }
+    with open(POOL_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_pool(pool: dict) -> None:
+    """Save the teaser pool to the JSON file (atomic write)."""
+    tmp = POOL_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(pool, f, indent=2, ensure_ascii=False)
+    tmp.replace(POOL_FILE)
+    logger.info("Saved teaser pool to %s (next_index=%d)", POOL_FILE, pool["next_index"])
+
+
+def get_next_teaser(pool: dict) -> dict | None:
+    """
+    Return the next teaser from the pool and advance the index.
+    Skips any teaser marked as ``skipped: true``.
+    Returns None if the pool is exhausted.
+    """
+    teasers = pool.get("teasers", [])
+    index = pool.get("next_index", 0)
+
+    while index < len(teasers):
+        teaser = teasers[index]
+        pool["next_index"] = index + 1
+
+        if teaser.get("skipped"):
+            logger.info("Skipping teaser #%d (marked as skipped)", index)
+            index = pool["next_index"]
+            continue
+
+        logger.info(
+            "Selected teaser #%d: category='%s', sub_type='%s', difficulty='%s', theme='%s'",
+            index, teaser.get("category"), teaser.get("sub_type"),
+            teaser.get("difficulty"), teaser.get("theme"),
+        )
+        return teaser
+
+    # Exhausted
+    pool["next_index"] = len(teasers)
+    logger.warning("Teaser pool is exhausted (index %d of %d)", index, len(teasers))
+    return None
+
+
+def pool_needs_regeneration(pool: dict) -> bool:
+    """Return True if the pool is empty or nearly exhausted."""
+    teasers = pool.get("teasers", [])
+    remaining = len(teasers) - pool.get("next_index", 0)
+
+    if not teasers:
+        logger.warning("Teaser pool is empty — generation needed")
+        return True
+
+    if remaining <= POOL_LOW_THRESHOLD:
+        logger.warning(
+            "Teaser pool is low (%d remaining out of %d) — generation recommended",
+            remaining, len(teasers),
+        )
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Memory operations — audit trail & cross-batch dedup
+# ---------------------------------------------------------------------------
 
 def load_memory() -> dict:
     """
-    Load brain teaser memory from the JSON file.
+    Load brain teaser memory (audit trail) from the JSON file.
     Returns a fresh default state if the file doesn't exist yet.
+    Backward-compatible: merges in defaults for any missing keys.
     """
+    defaults = {
+        "completed_batches": [],
+        "history": [],
+        # Legacy keys (kept for backward compatibility with old files)
+        "recent_categories": [],
+        "difficulty_cycle_position": 0,
+        "recent_sub_types": {},
+    }
+
     if not MEMORY_FILE.exists():
-        return {
-            "recent_categories": [],
-            "difficulty_cycle_position": 0,
-            "history": [],
-        }
+        return defaults
+
     with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # Merge defaults so new keys appear even in old files
+    for key, default_val in defaults.items():
+        data.setdefault(key, default_val)
+
+    return data
 
 
 def save_memory(memory: dict) -> None:
     """Save brain teaser memory to the JSON file (atomic write)."""
     tmp = MEMORY_FILE.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(memory, f, indent=2)
+        json.dump(memory, f, indent=2, ensure_ascii=False)
     tmp.replace(MEMORY_FILE)
     logger.info("Saved brain teaser memory to %s", MEMORY_FILE)
 
 
-def pick_teaser_config(memory: dict) -> tuple[str, str, str]:
+def record_teaser_in_history(memory: dict, teaser: dict) -> dict:
     """
-    Select a brain teaser category, sub-type, and difficulty based on memory.
-    Ensures variety by avoiding recently used categories and sub-types.
-
-    Returns:
-        tuple of (category, sub_type, difficulty)
+    Append a consumed teaser to the audit history.
+    Keeps the history capped at MAX_HISTORY_ENTRIES for cross-batch dedup.
     """
-    recent = memory.get("recent_categories", [])
-    available = [c for c in TEASER_CATEGORIES if c not in recent]
-
-    if not available:
-        available = TEASER_CATEGORIES
-
-    category = random.choice(available)
-    position = memory.get("difficulty_cycle_position", 0)
-    difficulty = DIFFICULTY_CYCLE[position % len(DIFFICULTY_CYCLE)]
-
-    recent_sub_types = memory.get("recent_sub_types", {}).get(category, [])
-    all_sub_types = TEASER_SUB_TYPES[category]
-    available_sub_types = [s for s in all_sub_types if s not in recent_sub_types]
-    if not available_sub_types:
-        available_sub_types = all_sub_types
-    sub_type = random.choice(available_sub_types)
-
-    logger.info(
-        "Today's brain teaser: category='%s', sub_type='%s', difficulty='%s'",
-        category, sub_type, difficulty,
-    )
-    logger.debug("Recent categories (excluded): %s", recent)
-    logger.debug("Recent sub-types for '%s' (excluded): %s", category, recent_sub_types)
-
-    return category, sub_type, difficulty
-
-
-def update_memory(memory: dict, category: str, sub_type: str) -> dict:
-    """
-    Update memory after generating today's brain teaser.
-    Tracks recently used categories/sub-types and advances the difficulty cycle.
-    """
-    recent = memory.get("recent_categories", [])
-    recent.append(category)
-    memory["recent_categories"] = recent[-3:]
-
-    position = memory.get("difficulty_cycle_position", 0)
-    memory["difficulty_cycle_position"] = (position + 1) % len(DIFFICULTY_CYCLE)
-
-    recent_sub_types = memory.get("recent_sub_types", {})
-    category_sub_types = recent_sub_types.get(category, [])
-    category_sub_types.append(sub_type)
-    recent_sub_types[category] = category_sub_types[-3:]
-    memory["recent_sub_types"] = recent_sub_types
-
     history = memory.get("history", [])
     history.append({
         "date": str(date.today()),
-        "category": category,
-        "sub_type": sub_type,
-        "difficulty": DIFFICULTY_CYCLE[position % len(DIFFICULTY_CYCLE)],
+        "category": teaser.get("category", ""),
+        "sub_type": teaser.get("sub_type", ""),
+        "difficulty": teaser.get("difficulty", ""),
+        "theme": teaser.get("theme", ""),
+        "question": teaser.get("question", ""),
+        "answer": teaser.get("answer", ""),
     })
-    # Prune history to prevent unbounded growth
     memory["history"] = history[-MAX_HISTORY_ENTRIES:]
+    return memory
 
+
+def get_previous_questions(memory: dict, limit: int = 90) -> list[str]:
+    """
+    Return the most recent question texts from history, for use as a
+    'do not repeat' list during batch generation.
+    """
+    history = memory.get("history", [])
+    return [entry["question"] for entry in history[-limit:] if entry.get("question")]
+
+
+def record_batch_completed(memory: dict, pool: dict) -> dict:
+    """Record that a batch has been fully consumed (for audit trail)."""
+    batches = memory.get("completed_batches", [])
+    batches.append({
+        "batch_id": pool.get("batch_id", "unknown"),
+        "generated_at": pool.get("generated_at", ""),
+        "teasers_used": pool.get("next_index", 0),
+        "completed_at": str(date.today()),
+    })
+    memory["completed_batches"] = batches
     return memory
