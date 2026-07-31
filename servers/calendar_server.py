@@ -27,10 +27,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from mcp.server.models import InitializationOptions
-import mcp.types as types
-from mcp.server import NotificationOptions, Server
-import mcp.server.stdio
+from mcp.server import MCPServer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,7 +46,7 @@ TOKEN_PATH = str(
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
-LOCAL_TIMEZONE = "Europe/London"
+LOCAL_TIMEZONE = os.getenv("LOCAL_TIMEZONE", "Europe/London")
 
 
 def get_calendar_service():
@@ -146,7 +143,7 @@ class CalendarDataManager:
 
                 for event in events:
                     parsed = self._parse_event(event, calendar_label)
-                    if parsed:  # None means it was an all-day event
+                    if parsed:
                         all_events.append(parsed)
 
             except HttpError as e:
@@ -162,14 +159,24 @@ class CalendarDataManager:
     def _parse_event(self, event: dict, calendar_label: str) -> dict | None:
         start = event.get("start", {})
         end = event.get("end", {})
+        tz = ZoneInfo(LOCAL_TIMEZONE)
 
-        if "dateTime" not in start:
-            return None
+        # All-day events use "date" key instead of "dateTime"
+        if "date" in start and "dateTime" not in start:
+            return {
+                "title": event.get("summary", "No title"),
+                "start_time": "All day",
+                "end_time": "All day",
+                "start_iso": start["date"],
+                "calendar": calendar_label,
+                "location": event.get("location", ""),
+                "description": event.get("description", "")[:200],
+                "all_day": True,
+            }
 
         start_dt = datetime.fromisoformat(start["dateTime"])
         end_dt = datetime.fromisoformat(end["dateTime"])
 
-        tz = ZoneInfo(LOCAL_TIMEZONE)
         start_local = start_dt.astimezone(tz)
         end_local = end_dt.astimezone(tz)
 
@@ -180,7 +187,8 @@ class CalendarDataManager:
             "start_iso": start_local.isoformat(),
             "calendar": calendar_label,
             "location": event.get("location", ""),
-            "description": event.get("description", "")[:200]
+            "description": event.get("description", "")[:200],
+            "all_day": False,
         }
 
     def get_stats(self) -> dict:
@@ -191,106 +199,56 @@ class CalendarDataManager:
         return {
             "calendars": calendars,
             "timezone": LOCAL_TIMEZONE,
-            "scope": "Today's timed events only (all-day events excluded)",
+            "scope": "Today's events (timed and all-day)",
             "data_source": "Google Calendar API v3"
         }
 
 
-server = Server("calendar_server")
+server = MCPServer("calendar_server")
 data_manager = CalendarDataManager()
 
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="calendar_get_todays_events",
-            description=(
-                "Get today's scheduled events from Google Calendar. "
-                "Returns a merged, chronological list of timed events "
-                "from the primary and shared calendars. "
-                "All-day events are excluded. "
-                "Use this to give a summary of the day ahead."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        ),
-        types.Tool(
-            name="calendar_get_stats",
-            description=(
-                "Get an overview of which calendars this server connects to."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        )
-    ]
-
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent]:
-
+@server.tool(
+    name="calendar_get_todays_events",
+    description=(
+        "Get today's scheduled events from Google Calendar. "
+        "Returns a merged, chronological list of events "
+        "from the primary and shared calendars. "
+        "All-day events are included with an all_day flag. "
+        "Use this to give a summary of the day ahead."
+    ),
+)
+async def handle_get_todays_events() -> str:
+    """Get today's scheduled events from Google Calendar."""
     try:
-        match name:
-            case "calendar_get_todays_events":
-                loop = asyncio.get_event_loop()
-                events = await loop.run_in_executor(
-                    None, data_manager.get_todays_events
-                )
+        events = await asyncio.to_thread(data_manager.get_todays_events)
 
-                if not events:
-                    return [types.TextContent(
-                        type="text",
-                        text="No timed events scheduled for today."
-                    )]
+        if not events:
+            return "No timed events scheduled for today."
 
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(events, indent=2, ensure_ascii=False)
-                )]
-
-            case "calendar_get_stats":
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(data_manager.get_stats(), indent=2)
-                )]
-
-            case _:
-                raise ValueError(f"Unknown tool: {name}")
-
+        return json.dumps(events, indent=2, ensure_ascii=False)
     except Exception as e:
-        logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=f"Error executing tool: {str(e)}"
-        )]
+        logger.error("Error in calendar_get_todays_events: %s", e, exc_info=True)
+        return f"Error executing tool: {e}"
 
 
-async def main():
+@server.tool(
+    name="calendar_get_stats",
+    description="Get an overview of which calendars this server connects to.",
+)
+async def handle_get_stats() -> str:
+    """Get an overview of which calendars this server connects to."""
     try:
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            logger.info("Google Calendar MCP Server starting...")
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="calendar_server",
-                    server_version="1.0.0",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+        return json.dumps(data_manager.get_stats(), indent=2)
     except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
-        raise
+        logger.error("Error in calendar_get_stats: %s", e, exc_info=True)
+        return f"Error executing tool: {e}"
+
+
+def main():
+    logger.info("Google Calendar MCP Server starting...")
+    server.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

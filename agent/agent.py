@@ -18,7 +18,10 @@ Requirements in .env:
 
 import asyncio
 import json
+import logging
 import os
+import sys
+from pathlib import Path
 from typing import cast
 
 import anthropic
@@ -37,164 +40,178 @@ from brain_teaser import (
     update_memory,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("morning_agent")
+
 load_dotenv()
 
+# ---------------------------------------------------------------------------
+# Configuration — all secrets and tunables come from the environment
+# ---------------------------------------------------------------------------
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 SLACK_WEBHOOK_SPORTS = os.getenv("SLACK_WEBHOOK_SPORTS")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_GENERAL = os.getenv("SLACK_CHANNEL_GENERAL")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 
-VENV_PYTHON = os.path.join(
-    os.path.dirname(__file__),
-    "..", "venv", "bin", "python"
-)
+REQUIRED_ENV_VARS = [
+    "ANTHROPIC_API_KEY",
+    "SLACK_BOT_TOKEN",
+    "SLACK_CHANNEL_GENERAL",
+]
 
-SPORTS_SERVER_SCRIPT = os.path.join(
-    os.path.dirname(__file__),
-    "..", "servers", "sports_highlights_server.py"
-)
+# Use the current Python interpreter so MCP servers inherit the same venv
+PYTHON_EXECUTABLE = sys.executable
 
-CALENDAR_SERVER_SCRIPT = os.path.join(
-    os.path.dirname(__file__),
-    "..", "servers", "calendar_server.py"
-)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SPORTS_SERVER_SCRIPT = str(PROJECT_ROOT / "servers" / "sports_highlights_server.py")
+CALENDAR_SERVER_SCRIPT = str(PROJECT_ROOT / "servers" / "calendar_server.py")
+
+# Reusable Slack client — created once, reused for all Bot API calls
+_slack_client: WebClient | None = None
+
+
+def _get_slack_client() -> WebClient:
+    """Return a lazily-initialised, reusable Slack WebClient."""
+    global _slack_client
+    if _slack_client is None:
+        _slack_client = WebClient(token=SLACK_BOT_TOKEN)
+    return _slack_client
 
 
 def mcp_tools_to_anthropic(mcp_tools) -> list[dict]:
     """
     Converts MCP tool definitions to the shape Anthropic's API expects.
-    inputSchema (MCP) -> input_schema (Anthropic)
     """
     return [
         {
             "name": tool.name,
             "description": tool.description,
-            "input_schema": tool.inputSchema
+            "input_schema": tool.input_schema,
         }
         for tool in mcp_tools
     ]
 
 
 async def post_to_webhook(webhook_url: str, message: str) -> bool:
+    """Post a message to Slack via an incoming webhook URL."""
     if not webhook_url:
-        print("[Slack] Sports webhook URL not configured - skipping")
+        logger.warning("Sports webhook URL not configured — skipping")
         return False
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(webhook_url, json={"text": message})
             response.raise_for_status()
-            print("[Slack] Sports highlights posted via webhook")
+            logger.info("Sports highlights posted via webhook")
             return True
     except httpx.HTTPError as e:
-        print(f"[Slack] Webhook post failed: {e}")
+        logger.error("Webhook post failed: %s", e)
         return False
 
 
 def post_with_thread_reply(
-        channel: str,
-        message: str,
-        thread_reply: str) -> bool:
-    """
-    Post a message to a Slack channel using the Bot API,
-    then reply in its thread with a follow-up message.
-    """
+    channel: str,
+    message: str,
+    thread_reply: str,
+) -> bool:
+    """Post a message to Slack, then reply in its thread with a follow-up."""
     if not SLACK_BOT_TOKEN:
-        print("[Slack] Bot token not configured - skipping")
+        logger.warning("Bot token not configured — skipping")
         return False
 
-    client = WebClient(token=SLACK_BOT_TOKEN)
+    client = _get_slack_client()
 
     try:
         result = client.chat_postMessage(channel=channel, text=message)
         ts = result["ts"]
-        print(f"[Slack] Posted brain teaser to #{channel} (ts: {ts})")
+        logger.info("Posted brain teaser to #%s (ts: %s)", channel, ts)
 
         client.chat_postMessage(
             channel=channel,
             text=thread_reply,
-            thread_ts=ts
+            thread_ts=ts,
         )
-        print("[Slack] Posted thread reply with answer")
+        logger.info("Posted thread reply with answer")
         return True
 
     except SlackApiError as e:
-        print(f"[Slack] Bot API error: {e.response['error']}")
+        logger.error("Bot API error: %s", e.response["error"])
         return False
 
 
 def post_message(channel: str, message: str) -> bool:
+    """Post a simple message to a Slack channel using the Bot API."""
     if not SLACK_BOT_TOKEN:
-        print("[Slack] Bot token not configured - skipping")
+        logger.warning("Bot token not configured — skipping")
         return False
 
-    client = WebClient(token=SLACK_BOT_TOKEN)
+    client = _get_slack_client()
 
     try:
         client.chat_postMessage(channel=channel, text=message)
-        print(f"[Slack] Posted calendar summary to channel {channel}")
+        logger.info("Posted calendar summary to channel %s", channel)
         return True
     except SlackApiError as e:
-        print(f"[Slack] Bot API error: {e.response['error']}")
+        logger.error("Bot API error: %s", e.response["error"])
         return False
 
 
 def parse_sections(final_text: str) -> dict[str, str]:
     """
-    Split Claude's response into three named sections using markers:
+    Split Claude's response into named sections using markers:
 
         ##SPORTS##      -> #sports-highlights via webhook
         ##CALENDAR##    -> #general via Bot API (plain message)
         ##BRAINTEASER## -> #general via Bot API (with thread answer)
     """
-    sections = {
+    sections: dict[str, str] = {
         "sports": "",
         "calendar": "",
         "teaser_question": "",
-        "teaser_answer": ""}
+        "teaser_answer": "",
+    }
 
-    print(f"[Parser] Parsing response ({len(final_text)} chars)")
+    logger.info("Parsing response (%d chars)", len(final_text))
 
-    def find_marker(text: str, marker: str) -> list[int]:
-        return [i for i in range(
-            len(text)) if text[i:i + len(marker)] == marker]
-
-    sports_pos = find_marker(final_text, "##SPORTS##")
-    calendar_pos = find_marker(final_text, "##CALENDAR##")
-    teaser_pos = find_marker(final_text, "##BRAINTEASER##")
-
-    print(f"[Parser] Markers found - SPORTS: {len(sports_pos)}, "
-          f"CALENDAR: {len(calendar_pos)}, BRAINTEASER: {len(teaser_pos)}")
-
+    # Use str.split on each marker to extract content between them
     try:
-        if sports_pos:
-            start = sports_pos[0] + len("##SPORTS##")
-            end = calendar_pos[0] if calendar_pos else teaser_pos[0] if teaser_pos else len(
-                final_text)
-            sections["sports"] = final_text[start:end].strip()
+        if "##SPORTS##" in final_text:
+            after_sports = final_text.split("##SPORTS##", 1)[1]
+            end = len(after_sports)
+            for marker in ("##CALENDAR##", "##BRAINTEASER##"):
+                pos = after_sports.find(marker)
+                if pos != -1 and pos < end:
+                    end = pos
+            sections["sports"] = after_sports[:end].strip()
 
-        if calendar_pos:
-            start = calendar_pos[0] + len("##CALENDAR##")
-            end = teaser_pos[0] if teaser_pos else len(final_text)
-            sections["calendar"] = final_text[start:end].strip()
+        if "##CALENDAR##" in final_text:
+            after_calendar = final_text.split("##CALENDAR##", 1)[1]
+            end = len(after_calendar)
+            pos = after_calendar.find("##BRAINTEASER##")
+            if pos != -1:
+                end = pos
+            sections["calendar"] = after_calendar[:end].strip()
 
-        if teaser_pos:
-            start = teaser_pos[0] + len("##BRAINTEASER##")
-            raw = final_text[start:].strip()
+        if "##BRAINTEASER##" in final_text:
+            after_teaser = final_text.split("##BRAINTEASER##", 1)[1].strip()
+            # Handle the case where the marker appears again at the end
+            if "##BRAINTEASER##" in after_teaser:
+                after_teaser = after_teaser.split("##BRAINTEASER##")[0].strip()
 
-            if "##BRAINTEASER##" in raw:
-                raw = raw.split("##BRAINTEASER##")[0].strip()
-
-            if "|" in raw:
-                parts = raw.split("|", 1)
+            if "|" in after_teaser:
+                parts = after_teaser.split("|", 1)
                 sections["teaser_question"] = parts[0].strip()
                 sections["teaser_answer"] = f"Answer: {parts[1].strip()}"
             else:
-                sections["teaser_question"] = raw
+                sections["teaser_question"] = after_teaser
                 sections["teaser_answer"] = "(No answer provided)"
 
     except Exception as e:
-        print(f"[Parser] Error: {e} - sections may be incomplete")
+        logger.error("Parser error: %s — sections may be incomplete", e)
 
     return sections
 
@@ -205,10 +222,10 @@ async def run_agent(
     anthropic_client: anthropic.Anthropic,
     teaser_category: str,
     teaser_sub_type: str,
-    teaser_difficulty: str
+    teaser_difficulty: str,
 ) -> str:
     """
-    The agent loop - routes tool calls across two MCP servers and
+    The agent loop — routes tool calls across two MCP servers and
     returns Claude's final response text for Slack posting.
 
     Parameters:
@@ -220,7 +237,7 @@ async def run_agent(
         teaser_difficulty:  Brain teaser difficulty from the cycle
     """
 
-    print("\n--- Discovering tools from both MCP servers ---")
+    logger.info("--- Discovering tools from both MCP servers ---")
 
     calendar_tools_response = await calendar_session.list_tools()
     sports_tools_response = await sports_session.list_tools()
@@ -234,11 +251,15 @@ async def run_agent(
     all_mcp_tools = calendar_tools_response.tools + sports_tools_response.tools
     all_tools = mcp_tools_to_anthropic(all_mcp_tools)
 
-    print(
-        f"Calendar server tools: {[t.name for t in calendar_tools_response.tools]}")
-    print(
-        f"Sports server tools:   {[t.name for t in sports_tools_response.tools]}")
-    print(f"Total tools available to Claude: {len(all_tools)}")
+    logger.info(
+        "Calendar server tools: %s",
+        [t.name for t in calendar_tools_response.tools],
+    )
+    logger.info(
+        "Sports server tools:   %s",
+        [t.name for t in sports_tools_response.tools],
+    )
+    logger.info("Total tools available to Claude: %d", len(all_tools))
 
     messages: list[dict] = [
         {
@@ -277,33 +298,31 @@ async def run_agent(
         }
     ]
 
-    print("\n--- Starting agent loop ---")
+    logger.info("--- Starting agent loop ---")
 
     while True:
-
-        print(f"\n[Loop] Sending {len(messages)} message(s) to Claude...")
+        logger.info("Sending %d message(s) to Claude…", len(messages))
         response = anthropic_client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model=ANTHROPIC_MODEL,
             max_tokens=2048,
             tools=cast(list, all_tools),
-            messages=cast(list[MessageParam], messages)
+            messages=cast(list[MessageParam], messages),
         )
 
-        print(f"[Loop] Claude stop reason: '{response.stop_reason}'")
+        logger.info("Claude stop reason: '%s'", response.stop_reason)
 
         if response.stop_reason == "end_turn":
             final_text = next(
                 block.text for block in response.content
                 if block.type == "text"
             )
-            print(f"\n--- Final response from Claude ---\n{final_text}")
+            logger.info("--- Final response from Claude ---\n%s", final_text)
             return final_text
 
         if response.stop_reason == "tool_use":
-
             messages.append({
                 "role": "assistant",
-                "content": [block.model_dump() for block in response.content]
+                "content": [block.model_dump() for block in response.content],
             })
 
             tool_results: list[dict] = []
@@ -312,18 +331,13 @@ async def run_agent(
                 if block.type != "tool_use":
                     continue
 
-                print(f"\n[Tool call] '{block.name}'")
-                print(
-                    f"[Tool call] Arguments: {
-                        json.dumps(
-                            block.input,
-                            indent=2)}")
+                logger.info("Tool call: '%s'", block.name)
+                logger.debug("Tool arguments: %s", json.dumps(block.input, indent=2))
 
                 session = tool_routing.get(block.name)
                 if session is None:
-                    result_text = f"Error: no server found for tool '{
-                        block.name}'"
-                    print(f"[Tool error] {result_text}")
+                    result_text = f"Error: no server found for tool '{block.name}'"
+                    logger.error(result_text)
                 else:
                     tool_response = await session.call_tool(block.name, block.input)
                     first = tool_response.content[0] if tool_response.content else None
@@ -332,53 +346,61 @@ async def run_agent(
                         if first is not None and first.type == "text"
                         else "No result"
                     )
-                    print(
-                        f"[Tool result] {result_text[:200]}{'...' if len(result_text) > 200 else ''}")
+                    logger.info("Tool result: %s", result_text[:200])
 
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content": result_text
+                    "content": result_text,
                 })
 
             messages.append({
                 "role": "user",
-                "content": tool_results
+                "content": tool_results,
             })
 
 
 async def main():
-    print("=== Morning Agent ===")
+    logger.info("=== Morning Agent ===")
+
+    # Validate required environment variables early
+    missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if missing:
+        logger.error(
+            "Missing required environment variables: %s. "
+            "Check your .env file.",
+            ", ".join(missing),
+        )
+        return
 
     memory = load_memory()
-    teaser_category, teaser_sub_type, teaser_difficulty = pick_teaser_config(
-        memory)
+    teaser_category, teaser_sub_type, teaser_difficulty = pick_teaser_config(memory)
 
     calendar_server_params = StdioServerParameters(
-        command=VENV_PYTHON,
+        command=PYTHON_EXECUTABLE,
         args=[CALENDAR_SERVER_SCRIPT],
-        env={**os.environ}
+        env={**os.environ},
     )
 
     sports_server_params = StdioServerParameters(
-        command=VENV_PYTHON,
+        command=PYTHON_EXECUTABLE,
         args=[SPORTS_SERVER_SCRIPT],
-        env={**os.environ}
+        env={**os.environ},
     )
 
     anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    print("Connecting to calendar server...")
+    logger.info("Connecting to calendar server…")
     async with stdio_client(calendar_server_params) as (cal_read, cal_write):
         async with ClientSession(cal_read, cal_write) as calendar_session:
             await calendar_session.initialize()
-            print("Connected to calendar server.")
+            logger.info("Connected to calendar server.")
 
-            print("Connecting to sports highlights server...")
+            logger.info("Connecting to sports highlights server…")
             async with stdio_client(sports_server_params) as (sports_read, sports_write):
                 async with ClientSession(sports_read, sports_write) as sports_session:
                     await sports_session.initialize()
-                    print("Connected to sports highlights server.")
+                    logger.info("Connected to sports highlights server.")
 
                     final_text = await run_agent(
                         calendar_session,
@@ -386,35 +408,35 @@ async def main():
                         anthropic_client,
                         teaser_category,
                         teaser_sub_type,
-                        teaser_difficulty
+                        teaser_difficulty,
                     )
 
-    print("\n--- Posting to Slack ---")
+    logger.info("--- Posting to Slack ---")
     sections = parse_sections(final_text)
 
     if sections["sports"] and SLACK_WEBHOOK_SPORTS:
         await post_to_webhook(SLACK_WEBHOOK_SPORTS, sections["sports"])
     else:
-        print("[Slack] No sports content to post")
+        logger.info("No sports content to post")
 
     if sections["calendar"] and SLACK_CHANNEL_GENERAL:
         post_message(SLACK_CHANNEL_GENERAL, sections["calendar"])
     else:
-        print("[Slack] No calendar content to post")
+        logger.info("No calendar content to post")
 
     if sections["teaser_question"] and SLACK_CHANNEL_GENERAL:
         post_with_thread_reply(
             SLACK_CHANNEL_GENERAL,
             sections["teaser_question"],
-            sections["teaser_answer"]
+            sections["teaser_answer"],
         )
     else:
-        print("[Slack] No brain teaser content to post")
+        logger.info("No brain teaser content to post")
 
     memory = update_memory(memory, teaser_category, teaser_sub_type)
     save_memory(memory)
 
-    print("\n=== Done ===")
+    logger.info("=== Done ===")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,10 @@
-name: PEP 8 Enforcement
+name: Python Lint & Format
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
@@ -10,9 +13,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  pep8:
+  lint:
     runs-on: ubuntu-latest
-    if: github.event.head_commit.author.username != 'github-actions[bot]'
 
     steps:
       - name: Checkout code
@@ -23,18 +25,42 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install PEP 8 tools
-        run: pip install flake8 autopep8
-
-      - name: Run flake8 to detect violations
+      - name: Install dependencies
         run: |
-          echo "=== PEP 8 violations detected by flake8 ==="
+          pip install ruff flake8
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Flake8 strict check
+        run: |
           find . -name "*.py" -not -path "./.git/*" -print0 \
-            | xargs -0 flake8 --format="%(path)s:%(row)d:%(col)d: %(code)s %(text)s" \
-            || true
+            | xargs -0 flake8 --max-line-length=120 --extend-ignore=E501
 
-      - name: Apply PEP 8 formatting with autopep8
+  auto-fix:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.event.head_commit.author.username != 'github-actions[bot]'
+    needs: lint
+    # Only run auto-fix if lint failed; we re-run ruff to apply fixes
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install tools
+        run: pip install ruff autopep8
+
+      - name: Apply ruff format + autopep8 fixes
         run: |
+          ruff format .
           find . -name "*.py" -not -path "./.git/*" -print0 \
             | xargs -0 autopep8 --in-place --aggressive --aggressive
 
@@ -42,10 +68,10 @@ jobs:
         id: changes
         run: |
           if git diff --quiet; then
-            echo "No PEP 8 changes required. Exiting."
+            echo "No formatting changes required."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Python files require PEP 8 fixes:"
+            echo "Files requiring formatting fixes:"
             git diff --name-only
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
@@ -60,9 +86,9 @@ jobs:
             --base main \
             --state open \
             --json title \
-            --jq '[.[] | select(.title | startswith("Automated: Apply PEP 8"))] | length')
+            --jq '[.[] | select(.title | startswith("Automated: Apply formatting"))] | length')
           if [ "$count" -gt 0 ]; then
-            echo "A PEP 8 enforcement PR is already open. Skipping."
+            echo "A formatting PR is already open. Skipping."
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -72,13 +98,13 @@ jobs:
         if: steps.changes.outputs.changed == 'true' && steps.duplicate.outputs.exists == 'false'
         id: branch
         run: |
-          BRANCH="automated/pep8-fixes-$(date +%Y%m%d-%H%M%S)"
+          BRANCH="automated/format-fixes-$(date +%Y%m%d-%H%M%S)"
           echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           find . -name "*.py" -not -path "./.git/*" -print0 | xargs -0 git add
-          git commit -m "Automated: Apply PEP 8 formatting fixes"
+          git commit -m "Automated: Apply Python formatting fixes"
           git push origin "$BRANCH"
 
       - name: Open pull request
@@ -90,17 +116,16 @@ jobs:
           CHANGED_FILES=$(git diff origin/main.."$BRANCH" --name-only -- '*.py' \
             | sed 's/^/- /')
 
-          printf '## Automated PEP 8 Fixes\n\n' > /tmp/pr_body.md
-          printf 'This pull request was automatically generated to enforce Python coding\n' >> /tmp/pr_body.md
-          printf 'standards based on [PEP 8](https://peps.python.org/pep-0008/).\n\n' >> /tmp/pr_body.md
-          printf '### Modified Files\n\n' >> /tmp/pr_body.md
-          printf '%s\n\n' "$CHANGED_FILES" >> /tmp/pr_body.md
+          printf '## Automated Python Formatting Fixes\n\n' > /tmp/pr_body.md
+          printf 'This PR was automatically generated to enforce Python coding standards.\n\n' >> /tmp/pr_body.md
           printf '### Tools Used\n\n' >> /tmp/pr_body.md
-          printf -- '- `autopep8`: Automatically formatted Python files to comply with PEP 8\n' >> /tmp/pr_body.md
-          printf -- '- `flake8`: Identified linting violations\n' >> /tmp/pr_body.md
+          printf -- '- `ruff format`: Fast Python formatter\n' >> /tmp/pr_body.md
+          printf -- '- `autopep8`: Additional PEP 8 compliance fixes\n\n' >> /tmp/pr_body.md
+          printf '### Modified Files\n\n' >> /tmp/pr_body.md
+          printf '%s\n' "$CHANGED_FILES" >> /tmp/pr_body.md
 
           gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "Automated: Apply PEP 8 formatting fixes" \
+            --title "Automated: Apply formatting fixes" \
             --body-file /tmp/pr_body.md

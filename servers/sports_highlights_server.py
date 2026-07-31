@@ -15,14 +15,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import date, timedelta
 
 import httpx
 from dotenv import load_dotenv
-from mcp.server.models import InitializationOptions
-import mcp.types as types
-from mcp.server import NotificationOptions, Server
-import mcp.server.stdio
+from mcp.server import MCPServer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +33,11 @@ load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
-MIN_DURATION_SECONDS = 5 * 60
+MIN_DURATION_SECONDS = int(os.getenv("MIN_DURATION_SECONDS", str(5 * 60)))
+
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_FACTOR = 1  # seconds, doubles each retry
 
 
 def _parse_iso8601_duration(duration: str) -> int:
@@ -43,7 +45,6 @@ def _parse_iso8601_duration(duration: str) -> int:
     Parse an ISO 8601 duration string (e.g. 'PT6M30S') into total seconds.
     Returns 0 if parsing fails.
     """
-    import re
     match = re.match(
         r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?',
         duration
@@ -106,17 +107,29 @@ async def fetch_espn_scoreboard(
     url = ESPN_SCOREBOARD_URL.format(sport=sport, league=league)
     params = {"dates": game_date}
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPError as e:
-        logger.error(f"ESPN API error for {sport}/{league}: {e}")
-        return {}
-    except Exception as e:
-        logger.error(f"Unexpected error fetching ESPN data: {e}")
-        return {}
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            # Don't retry client errors (4xx)
+            if e.response.status_code < 500:
+                logger.error(f"ESPN API client error for {sport}/{league}: {e}")
+                return {}
+            logger.warning(
+                f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}"
+            )
+        except httpx.HTTPError as e:
+            logger.warning(
+                f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}"
+            )
+        if attempt < MAX_RETRIES:
+            await asyncio.sleep(RETRY_BACKOFF_FACTOR * 2 ** (attempt - 1))
+
+    logger.error(f"ESPN API failed after {MAX_RETRIES} retries for {sport}/{league}")
+    return {}
 
 
 def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
@@ -244,23 +257,46 @@ async def search_youtube_highlights(
         "key": YOUTUBE_API_KEY
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(YOUTUBE_SEARCH_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
+    # Retry the YouTube search API call with exponential backoff
+    data = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(YOUTUBE_SEARCH_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+            break
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                logger.error(f"YouTube API client error for {team_name}: {e}")
+                return None
+            logger.warning(
+                f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}"
+            )
+        except httpx.HTTPError as e:
+            logger.warning(
+                f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}"
+            )
+        if attempt < MAX_RETRIES:
+            await asyncio.sleep(RETRY_BACKOFF_FACTOR * 2 ** (attempt - 1))
+    else:
+        logger.error(f"YouTube search failed after {MAX_RETRIES} retries for {team_name}")
+        return None
 
+    if data is None:
+        return None
+
+    try:
         items = data.get("items", [])
         if not items:
             logger.warning(f"No YouTube results found for: {query}")
             return None
 
         video_ids = [
-            item.get(
-                "id",
-                {}).get("videoId") for item in items if item.get(
-                "id",
-                {}).get("videoId")]
+            item.get("id", {}).get("videoId")
+            for item in items
+            if item.get("id", {}).get("videoId")
+        ]
         durations = {}
         if video_ids:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -273,28 +309,21 @@ async def search_youtube_highlights(
                 for v in videos_response.json().get("items", []):
                     vid_id = v.get("id")
                     iso_duration = v.get(
-                        "contentDetails", {}).get(
-                        "duration", "PT0S")
+                        "contentDetails", {}).get("duration", "PT0S")
                     durations[vid_id] = _parse_iso8601_duration(iso_duration)
 
         is_long_enough = [
-            item for item in items if durations.get(
-                item.get(
-                    "id",
-                    {}).get("videoId"),
-                0) >= MIN_DURATION_SECONDS]
+            item for item in items
+            if durations.get(item.get("id", {}).get("videoId"), 0) >= MIN_DURATION_SECONDS
+        ]
 
         if not is_long_enough:
             logger.warning(
-                f"No YouTube results over {
-                    MIN_DURATION_SECONDS //
-                    60} minutes found for: {query}")
+                f"No YouTube results over {MIN_DURATION_SECONDS // 60} minutes found for: {query}"
+            )
             return None
 
-        scored = sorted(
-            is_long_enough,
-            key=_score_youtube_result,
-            reverse=True)
+        scored = sorted(is_long_enough, key=_score_youtube_result, reverse=True)
         best = scored[0]
 
         video_id = best.get("id", {}).get("videoId")
@@ -304,21 +333,22 @@ async def search_youtube_highlights(
             return None
 
         logger.info(
-            f"Selected highlight for {team_name}: '{
-                snippet.get('title')}' " f"from '{
-                snippet.get('channelTitle')}' " f"(score: {
-                _score_youtube_result(best)}, duration: {
-                    durations.get(video_id)}s)")
+            f"Selected highlight for {team_name}: '"
+            f"{snippet.get('title')}' from '"
+            f"{snippet.get('channelTitle')}' "
+            f"(score: {_score_youtube_result(best)}, duration: "
+            f"{durations.get(video_id)}s)"
+        )
 
         return {
             "title": snippet.get("title", "Highlights"),
             "url": f"https://www.youtube.com/watch?v={video_id}",
             "channel": snippet.get("channelTitle", ""),
-            "published_at": snippet.get("publishedAt", "")[:10]
+            "published_at": snippet.get("publishedAt", "")[:10],
         }
 
     except httpx.HTTPError as e:
-        logger.error(f"YouTube API error for {team_name}: {e}")
+        logger.error(f"YouTube video details API error for {team_name}: {e}")
         return None
     except Exception as e:
         logger.error(f"Unexpected error searching YouTube: {e}")
@@ -446,155 +476,77 @@ class SportsDataManager:
         }
 
 
-server = Server("sports_highlights_server")
+server = MCPServer("sports_highlights_server")
 data_manager = SportsDataManager()
 
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="sports_get_highlights",
-            description=(
-                "Get yesterday's game results and YouTube highlight URLs "
-                "for New England sports teams "
-                "Returns score, result, and a YouTube link for each team that played. "
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "team": {
-                        "type": "string",
-                        "description": (
-                            "Optional. Filter to a single team. "
-                            "Must match exactly: 'New England Patriots', 'Boston Celtics', "
-                            "'Boston Bruins', 'Boston Red Sox', or 'New England Revolution'. "
-                            "If omitted, checks all five teams."
-                        )
-                    },
-                    "game_date": {
-                        "type": "string",
-                        "description": (
-                            "Optional. Date to check in YYYY-MM-DD format. "
-                            "Defaults to yesterday if omitted."
-                        )
-                    }
-                }
-            }
-        ),
-        types.Tool(
-            name="sports_get_teams_that_played",
-            description=(
-                "Check which New England teams had games yesterday. "
-                "Returns a list of team names. "
-                "Use this first if you want to know whether any teams played "
-                "before fetching full highlight details."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "game_date": {
-                        "type": "string",
-                        "description": (
-                            "Optional. Date to check in YYYY-MM-DD format. "
-                            "Defaults to yesterday if omitted."
-                        )
-                    }
-                }
-            }
-        ),
-        types.Tool(
-            name="sports_get_dataset_stats",
-            description=(
-                "Get an overview of which teams and sports this server covers."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        )
-    ]
-
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent]:
-
+@server.tool(
+    name="sports_get_highlights",
+    description=(
+        "Get yesterday's game results and YouTube highlight URLs "
+        "for New England sports teams. "
+        "Returns score, result, and a YouTube link for each team that played."
+    ),
+)
+async def handle_get_highlights(
+    team: str | None = None,
+    game_date: str | None = None,
+) -> str:
+    """Get highlights for New England sports teams."""
     try:
-        args = arguments or {}
+        results = await data_manager.get_highlights(team=team, game_date=game_date)
 
-        match name:
-            case "sports_get_highlights":
-                results = await data_manager.get_highlights(
-                    team=args.get("team"),
-                    game_date=args.get("game_date")
-                )
+        if not results:
+            return "No New England teams played yesterday."
 
-                if not results:
-                    return [types.TextContent(
-                        type="text",
-                        text="No New England teams played yesterday."
-                    )]
-
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(results, indent=2)
-                )]
-
-            case "sports_get_teams_that_played":
-                teams = await data_manager.get_teams_that_played(
-                    game_date=args.get("game_date")
-                )
-
-                if not teams:
-                    return [types.TextContent(
-                        type="text",
-                        text="No New England teams played yesterday."
-                    )]
-
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(teams, indent=2)
-                )]
-
-            case "sports_get_dataset_stats":
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(data_manager.get_stats(), indent=2)
-                )]
-
-            case _:
-                raise ValueError(f"Unknown tool: {name}")
-
+        return json.dumps(results, indent=2)
     except Exception as e:
-        logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
-        return [types.TextContent(
-            type="text",
-            text=f"Error executing tool: {str(e)}"
-        )]
+        logger.error("Error in sports_get_highlights: %s", e, exc_info=True)
+        return f"Error executing tool: {e}"
 
 
-async def main():
+@server.tool(
+    name="sports_get_teams_that_played",
+    description=(
+        "Check which New England teams had games yesterday. "
+        "Returns a list of team names. "
+        "Use this first if you want to know whether any teams played "
+        "before fetching full highlight details."
+    ),
+)
+async def handle_get_teams_that_played(
+    game_date: str | None = None,
+) -> str:
+    """Check which New England teams had games."""
     try:
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            logger.info("Sports Highlights MCP Server starting...")
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="sports_highlights_server",
-                    server_version="1.0.0",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
+        teams = await data_manager.get_teams_that_played(game_date=game_date)
+
+        if not teams:
+            return "No New England teams played yesterday."
+
+        return json.dumps(teams, indent=2)
     except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
-        raise
+        logger.error("Error in sports_get_teams_that_played: %s", e, exc_info=True)
+        return f"Error executing tool: {e}"
+
+
+@server.tool(
+    name="sports_get_dataset_stats",
+    description="Get an overview of which teams and sports this server covers.",
+)
+async def handle_get_dataset_stats() -> str:
+    """Get an overview of which teams and sports this server covers."""
+    try:
+        return json.dumps(data_manager.get_stats(), indent=2)
+    except Exception as e:
+        logger.error("Error in sports_get_dataset_stats: %s", e, exc_info=True)
+        return f"Error executing tool: {e}"
+
+
+def main():
+    logger.info("Sports Highlights MCP Server starting...")
+    server.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
