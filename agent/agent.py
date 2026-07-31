@@ -270,9 +270,10 @@ async def run_agent(
                 "end with its marker.\n\n"
 
                 "##SPORTS##\n"
-                "Check if any New England sports teams (Patriots, Bruins, "
-                "Celtics, Red Sox, Revolution) played yesterday. For each "
-                "team that played, include the YouTube highlight link. "
+                "Check if any tracked teams played yesterday: "
+                "New England sports teams (Patriots, Bruins, "
+                "Celtics, Red Sox, Revolution) and Palermo F.C. "
+                "For each team that played, include the YouTube highlight link. "
                 "Avoid including any scores or spoilers in the text - just the highlights. "
                 "If no teams played, say so.\n"
                 "##SPORTS##\n\n"

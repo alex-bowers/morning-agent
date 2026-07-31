@@ -90,6 +90,12 @@ TRACKED_TEAMS = {
         "league": "usa.1",
         "espn_name": "New England Revolution",
         "youtube_search": "New England Revolution highlights"
+    },
+    "Palermo F.C.": {
+        "sport": "soccer",
+        "league": "ita.2",
+        "espn_name": "Palermo",
+        "youtube_search": "Palermo highlights"
     }
 }
 
@@ -213,11 +219,11 @@ def _score_youtube_result(item: dict) -> int:
 
     score = 0
 
-    official_leagues = ["nba", "nfl", "nhl", "mlb", "mls"]
+    official_leagues = ["nba", "nfl", "nhl", "mlb", "mls", "serie b"]
     if any(league in channel for league in official_leagues):
         score += 3
 
-    official_teams = ["celtics", "patriots", "bruins", "red sox", "revolution"]
+    official_teams = ["celtics", "patriots", "bruins", "red sox", "revolution", "palermo"]
     if any(team in channel for team in official_teams):
         score += 2
 
@@ -484,7 +490,7 @@ data_manager = SportsDataManager()
     name="sports_get_highlights",
     description=(
         "Get yesterday's game results and YouTube highlight URLs "
-        "for New England sports teams. "
+        "for tracked teams (New England sports teams and Palermo F.C.). "
         "Returns score, result, and a YouTube link for each team that played."
     ),
 )
@@ -497,7 +503,7 @@ async def handle_get_highlights(
         results = await data_manager.get_highlights(team=team, game_date=game_date)
 
         if not results:
-            return "No New England teams played yesterday."
+            return "No tracked teams played yesterday."
 
         return json.dumps(results, indent=2)
     except Exception as e:
@@ -508,7 +514,8 @@ async def handle_get_highlights(
 @server.tool(
     name="sports_get_teams_that_played",
     description=(
-        "Check which New England teams had games yesterday. "
+        "Check which tracked teams had games yesterday "
+        "(New England sports teams and Palermo F.C.). "
         "Returns a list of team names. "
         "Use this first if you want to know whether any teams played "
         "before fetching full highlight details."
@@ -522,7 +529,7 @@ async def handle_get_teams_that_played(
         teams = await data_manager.get_teams_that_played(game_date=game_date)
 
         if not teams:
-            return "No New England teams played yesterday."
+            return "No tracked teams played yesterday."
 
         return json.dumps(teams, indent=2)
     except Exception as e:
