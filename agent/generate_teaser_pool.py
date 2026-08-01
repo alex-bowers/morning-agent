@@ -81,8 +81,9 @@ def build_distribution_spec(count: int) -> str:
                 diff_parts.append(f"{n} {diff}")
 
         lines.append(
-            f"  {category}: {cat_count} teasers (difficulty mix: {', '.join(diff_parts)})\n" + "\n".join(sub_breakdown)
-        )
+            f"  {category}: {cat_count} teasers (difficulty mix: {
+                ', '.join(diff_parts)})\n" +
+            "\n".join(sub_breakdown))
 
     return "\n".join(lines)
 
@@ -95,7 +96,10 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
 
     previous_block = ""
     if previous_questions:
-        numbered = "\n".join(f"  {i + 1}. {q}" for i, q in enumerate(previous_questions))
+        numbered = "\n".join(
+            f"  {
+                i + 1}. {q}" for i,
+            q in enumerate(previous_questions))
         previous_block = (
             "\n\nIMPORTANT — Do NOT repeat or closely resemble any of these "
             "previously generated questions:\n" + numbered
@@ -142,7 +146,14 @@ def validate_teasers(teasers: list[dict], count: int) -> list[str]:
     if len(teasers) != count:
         warnings.append(f"Expected {count} teasers, got {len(teasers)}")
 
-    required_keys = {"id", "category", "sub_type", "difficulty", "theme", "question", "answer"}
+    required_keys = {
+        "id",
+        "category",
+        "sub_type",
+        "difficulty",
+        "theme",
+        "question",
+        "answer"}
     for i, t in enumerate(teasers):
         missing = required_keys - set(t.keys())
         if missing:
@@ -169,7 +180,9 @@ def validate_teasers(teasers: list[dict], count: int) -> list[str]:
         if cat not in TEASER_CATEGORIES:
             warnings.append(f"Unknown category: '{cat}'")
         elif t.get("sub_type", "") not in TEASER_SUB_TYPES.get(cat, []):
-            warnings.append(f"Unknown sub_type '{t.get('sub_type')}' for category '{cat}'")
+            warnings.append(
+                f"Unknown sub_type '{
+                    t.get('sub_type')}' for category '{cat}'")
 
     # Check difficulties
     for t in teasers:
@@ -187,18 +200,24 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
 
     # Check for existing pool
     existing_pool = load_pool()
-    if existing_pool.get("teasers") and existing_pool.get("next_index", 0) < len(existing_pool["teasers"]):
+    if existing_pool.get("teasers") and existing_pool.get(
+            "next_index", 0) < len(
+            existing_pool["teasers"]):
         remaining = len(existing_pool["teasers"]) - existing_pool["next_index"]
         logger.warning(
             "Existing pool still has %d teaser(s) remaining (batch_id=%s). Generating a new pool will replace it.",
             remaining,
-            existing_pool.get("batch_id", "unknown"),
+            existing_pool.get(
+                "batch_id",
+                "unknown"),
         )
 
     # Load memory for cross-batch dedup
     memory = load_memory()
     previous_questions = get_previous_questions(memory, limit=90)
-    logger.info("Loaded %d previous questions for dedup", len(previous_questions))
+    logger.info(
+        "Loaded %d previous questions for dedup",
+        len(previous_questions))
 
     prompt = build_prompt(count, previous_questions)
 
@@ -226,7 +245,10 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     debug_file = AGENT_DIR / "teaser_pool_raw_response.json"
     with open(debug_file, "w", encoding="utf-8") as f:
         f.write(raw_text)
-    logger.info("Saved raw Claude response to %s (%d chars)", debug_file, len(raw_text))
+    logger.info(
+        "Saved raw Claude response to %s (%d chars)",
+        debug_file,
+        len(raw_text))
 
     # Parse JSON — strip markdown fences if Claude adds them
     text = raw_text.strip()
@@ -242,7 +264,9 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     except json.JSONDecodeError as e:
         logger.error("Failed to parse Claude's response as JSON: %s", e)
         logger.error("Raw response (first 500 chars): %s", raw_text[:500])
-        logger.error("Full raw response saved to %s for inspection", debug_file)
+        logger.error(
+            "Full raw response saved to %s for inspection",
+            debug_file)
         sys.exit(1)
 
     if not isinstance(teasers, list):
@@ -256,9 +280,8 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
         "Spatial puzzle": "Visual/spatial puzzle (described in text)",
     }
     # Normalize sub-types — Claude sometimes drops the parenthetical detail
-    SUB_TYPE_ALIASES = {
-        "wordplay based on letter manipulation": "wordplay based on letter manipulation (remove, reverse, insert)",
-    }
+    SUB_TYPE_ALIASES = {"wordplay based on letter manipulation":
+                        "wordplay based on letter manipulation (remove, reverse, insert)", }
     for t in teasers:
         cat = t.get("category", "")
         if cat in CATEGORY_ALIASES:
@@ -314,7 +337,8 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate a new batch of brain teasers for the daily pool.")
+    parser = argparse.ArgumentParser(
+        description="Generate a new batch of brain teasers for the daily pool.")
     parser.add_argument(
         "--count",
         "-n",
@@ -330,7 +354,8 @@ def main():
     args = parser.parse_args()
 
     if not ANTHROPIC_API_KEY and not args.dry_run:
-        logger.error("ANTHROPIC_API_KEY not set. Add it to .env or set the environment variable.")
+        logger.error(
+            "ANTHROPIC_API_KEY not set. Add it to .env or set the environment variable.")
         sys.exit(1)
 
     generate_pool(count=args.count, dry_run=args.dry_run)

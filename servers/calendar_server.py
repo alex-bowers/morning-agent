@@ -29,7 +29,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from mcp.server import MCPServer
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("calendar_server")
 
 load_dotenv()
@@ -37,7 +39,8 @@ load_dotenv()
 GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH")
 GOOGLE_SHARED_CALENDAR_ID = os.getenv("GOOGLE_SHARED_CALENDAR_ID")
 
-TOKEN_PATH = str(Path(GOOGLE_CREDENTIALS_PATH).parent / "token.json") if GOOGLE_CREDENTIALS_PATH else "token.json"
+TOKEN_PATH = str(Path(GOOGLE_CREDENTIALS_PATH).parent /
+                 "token.json") if GOOGLE_CREDENTIALS_PATH else "token.json"
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
@@ -63,7 +66,8 @@ def get_calendar_service():
             if not GOOGLE_CREDENTIALS_PATH:
                 msg = "GOOGLE_CREDENTIALS_PATH not set in .env. Download credentials.json from Google Cloud Console."
                 raise ValueError(msg)
-            flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_PATH, SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(
+                GOOGLE_CREDENTIALS_PATH, SCOPES)
             # Opens browser for user to log in and grant access
             creds = flow.run_local_server(port=0)
 
@@ -109,7 +113,8 @@ class CalendarDataManager:
         if GOOGLE_SHARED_CALENDAR_ID:
             calendars_to_fetch.append((GOOGLE_SHARED_CALENDAR_ID, "Shared"))
         else:
-            logger.warning("GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
+            logger.warning(
+                "GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
 
         all_events = []
 
@@ -129,7 +134,9 @@ class CalendarDataManager:
                 )
 
                 events = result.get("items", [])
-                logger.info(f"Fetched {len(events)} events from {calendar_label} calendar")
+                logger.info(
+                    f"Fetched {
+                        len(events)} events from {calendar_label} calendar")
 
                 for event in events:
                     parsed = self._parse_event(event, calendar_label)
@@ -137,7 +144,8 @@ class CalendarDataManager:
                         all_events.append(parsed)
 
             except HttpError as e:
-                logger.error(f"Google Calendar API error for {calendar_label}: {e}")
+                logger.error(
+                    f"Google Calendar API error for {calendar_label}: {e}")
                 continue
 
         all_events.sort(key=lambda e: e["start_time"])
@@ -217,7 +225,10 @@ async def handle_get_todays_events() -> str:
 
         return json.dumps(events, indent=2, ensure_ascii=False)
     except Exception as e:
-        logger.error("Error in calendar_get_todays_events: %s", e, exc_info=True)
+        logger.error(
+            "Error in calendar_get_todays_events: %s",
+            e,
+            exc_info=True)
         return f"Error executing tool: {e}"
 
 

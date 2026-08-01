@@ -180,7 +180,10 @@ def save_pool(pool: dict) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(pool, f, indent=2, ensure_ascii=False)
     tmp.replace(POOL_FILE)
-    logger.info("Saved teaser pool to %s (next_index=%d)", POOL_FILE, pool["next_index"])
+    logger.info(
+        "Saved teaser pool to %s (next_index=%d)",
+        POOL_FILE,
+        pool["next_index"])
 
 
 def get_next_teaser(pool: dict) -> dict | None:
@@ -213,7 +216,10 @@ def get_next_teaser(pool: dict) -> dict | None:
 
     # Exhausted
     pool["next_index"] = len(teasers)
-    logger.warning("Teaser pool is exhausted (index %d of %d)", index, len(teasers))
+    logger.warning(
+        "Teaser pool is exhausted (index %d of %d)",
+        index,
+        len(teasers))
     return None
 
 
@@ -306,7 +312,8 @@ def get_previous_questions(memory: dict, limit: int = 90) -> list[str]:
     'do not repeat' list during batch generation.
     """
     history = memory.get("history", [])
-    return [entry["question"] for entry in history[-limit:] if entry.get("question")]
+    return [entry["question"]
+            for entry in history[-limit:] if entry.get("question")]
 
 
 def record_batch_completed(memory: dict, pool: dict) -> dict:

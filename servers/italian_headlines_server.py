@@ -22,7 +22,9 @@ import httpx
 from dotenv import load_dotenv
 from mcp.server import MCPServer
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("italian_headlines_server")
 
 load_dotenv()
@@ -65,7 +67,9 @@ async def fetch_rss_feed() -> str:
     return ""
 
 
-def parse_headlines(rss_content: str, count: int = NUM_HEADLINES) -> list[dict]:
+def parse_headlines(
+        rss_content: str,
+        count: int = NUM_HEADLINES) -> list[dict]:
     """
     Parse RSS content and extract the top headlines.
 
@@ -139,15 +143,12 @@ manager = ItalianHeadlinesManager()
 
 
 @server.tool(
-    name="italian_get_headlines",
-    description=(
+    name="italian_get_headlines", description=(
         "Fetch recent Italian-language football (calcio) headlines from Italian "
         "news sources. Returns the top headlines about Serie A from publications "
         "like Gazzetta dello Sport, Sky Sport, Corriere dello Sport, and Tuttosport. "
         "Each headline includes the Italian title, source name, URL, and publication date. "
-        "Use this to get Italian football news for language learners."
-    ),
-)
+        "Use this to get Italian football news for language learners."), )
 async def handle_get_headlines(count: int | None = None) -> str:
     """Get Italian calcio headlines from Google News RSS."""
     try:

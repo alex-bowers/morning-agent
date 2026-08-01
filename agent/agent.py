@@ -77,9 +77,15 @@ REQUIRED_ENV_VARS = [
 PYTHON_EXECUTABLE = sys.executable
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SPORTS_SERVER_SCRIPT = str(PROJECT_ROOT / "servers" / "sports_highlights_server.py")
+SPORTS_SERVER_SCRIPT = str(
+    PROJECT_ROOT /
+    "servers" /
+    "sports_highlights_server.py")
 CALENDAR_SERVER_SCRIPT = str(PROJECT_ROOT / "servers" / "calendar_server.py")
-ITALIAN_SERVER_SCRIPT = str(PROJECT_ROOT / "servers" / "italian_headlines_server.py")
+ITALIAN_SERVER_SCRIPT = str(
+    PROJECT_ROOT /
+    "servers" /
+    "italian_headlines_server.py")
 
 # Reusable Slack client — created once, reused for all Bot API calls
 _slack_client: WebClient | None = None
@@ -274,7 +280,8 @@ async def run_agent(
     for tool in italian_tools_response.tools:
         tool_routing[tool.name] = italian_session
 
-    all_mcp_tools = calendar_tools_response.tools + sports_tools_response.tools + italian_tools_response.tools
+    all_mcp_tools = calendar_tools_response.tools + \
+        sports_tools_response.tools + italian_tools_response.tools
     all_tools = mcp_tools_to_anthropic(all_mcp_tools)
 
     logger.info(
@@ -293,8 +300,7 @@ async def run_agent(
 
     messages: list[dict] = [
         {
-            "role": "user",
-            "content": (
+            "role": "user", "content": (
                 "Please do my morning checks and format your response using "
                 "the exact section markers below. Each section must start and "
                 "end with its marker.\n\n"
@@ -322,10 +328,7 @@ async def run_agent(
                 "   <link>\n"
                 "##ITALIAN##\n\n"
                 "Important: keep all markers exactly as shown. "
-                "They are used to route each section automatically."
-            ),
-        }
-    ]
+                "They are used to route each section automatically."), }]
 
     logger.info("--- Starting agent loop ---")
 
@@ -341,17 +344,14 @@ async def run_agent(
         logger.info("Claude stop reason: '%s'", response.stop_reason)
 
         if response.stop_reason == "end_turn":
-            final_text = next(block.text for block in response.content if block.type == "text")
+            final_text = next(
+                block.text for block in response.content if block.type == "text")
             logger.info("--- Final response from Claude ---\n%s", final_text)
             return final_text
 
         if response.stop_reason == "tool_use":
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": [block.model_dump() for block in response.content],
-                }
-            )
+            messages.append({"role": "assistant", "content": [
+                block.model_dump() for block in response.content], })
 
             tool_results: list[dict] = []
 
@@ -360,11 +360,14 @@ async def run_agent(
                     continue
 
                 logger.info("Tool call: '%s'", block.name)
-                logger.debug("Tool arguments: %s", json.dumps(block.input, indent=2))
+                logger.debug(
+                    "Tool arguments: %s", json.dumps(
+                        block.input, indent=2))
 
                 session = tool_routing.get(block.name)
                 if session is None:
-                    result_text = f"Error: no server found for tool '{block.name}'"
+                    result_text = f"Error: no server found for tool '{
+                        block.name}'"
                     logger.error(result_text)
                 else:
                     tool_response = await session.call_tool(block.name, block.input)
