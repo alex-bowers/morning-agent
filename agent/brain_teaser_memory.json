@@ -522,6 +522,24 @@
       "category": "Word puzzle",
       "sub_type": "cryptic definition or double meaning",
       "difficulty": "Medium"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Easy",
+      "theme": "music & instruments",
+      "question": "I have keys but no locks, I have space but no room, you can enter but you can't go inside. What am I?",
+      "answer": "A keyboard (piano or computer)"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Medium",
+      "theme": "cooking & food",
+      "question": "I have a heart that doesn't beat, a mouth that doesn't speak, and leaves that don't grow on trees. I'm often found in layers and make some people weep. What am I?",
+      "answer": "An artichoke"
     }
   ],
   "recent_sub_types": {

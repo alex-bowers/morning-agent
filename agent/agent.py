@@ -3,7 +3,8 @@ Morning Agent: Calendar + Sports + Brain Teaser
 ===============================================
 Posts results to two Slack channels:
     #sports-highlights -> via webhook (sports highlights)
-    #general           -> via Bot API (calendar summary + brain teaser with thread answer)
+    #calendar          -> via Bot API (calendar summary)
+    #brain-teaser      -> via Bot API (brain teaser with thread answer)
 
 Run with:
     python agent/agent.py
@@ -12,7 +13,8 @@ Requirements in .env:
     ANTHROPIC_API_KEY=your_key_here
     GOOGLE_SHARED_CALENDAR_ID=your-shared-calendar@group.calendar.google.com
     SLACK_BOT_TOKEN=xoxb-your-token-here
-    SLACK_CHANNEL_GENERAL=C08XXXXXXXXX
+    SLACK_CHANNEL_BRAIN_TEASER=C08XXXXXXXXX
+    SLACK_CHANNEL_CALENDAR=C08XXXXXXXXX
     SLACK_WEBHOOK_SPORTS=https://hooks.slack.com/services/...
 """
 
@@ -58,13 +60,15 @@ load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 SLACK_WEBHOOK_SPORTS = os.getenv("SLACK_WEBHOOK_SPORTS")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
-SLACK_CHANNEL_GENERAL = os.getenv("SLACK_CHANNEL_GENERAL")
+SLACK_CHANNEL_BRAIN_TEASER = os.getenv("SLACK_CHANNEL_BRAIN_TEASER")
+SLACK_CHANNEL_CALENDAR = os.getenv("SLACK_CHANNEL_CALENDAR")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 
 REQUIRED_ENV_VARS = [
     "ANTHROPIC_API_KEY",
     "SLACK_BOT_TOKEN",
-    "SLACK_CHANNEL_GENERAL",
+    "SLACK_CHANNEL_BRAIN_TEASER",
+    "SLACK_CHANNEL_CALENDAR",
 ]
 
 # Use the current Python interpreter so MCP servers inherit the same venv
@@ -396,15 +400,15 @@ async def main():
     else:
         logger.info("No sports content to post")
 
-    if sections["calendar"] and SLACK_CHANNEL_GENERAL:
-        post_message(SLACK_CHANNEL_GENERAL, sections["calendar"])
+    if sections["calendar"] and SLACK_CHANNEL_CALENDAR:
+        post_message(SLACK_CHANNEL_CALENDAR, sections["calendar"])
     else:
         logger.info("No calendar content to post")
 
     # Post brain teaser from the pool (no Claude generation needed)
-    if teaser and SLACK_CHANNEL_GENERAL:
+    if teaser and SLACK_CHANNEL_BRAIN_TEASER:
         post_with_thread_reply(
-            SLACK_CHANNEL_GENERAL,
+            SLACK_CHANNEL_BRAIN_TEASER,
             teaser["question"],
             f'Answer: {teaser["answer"]}',
         )
