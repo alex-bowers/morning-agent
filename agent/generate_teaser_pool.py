@@ -233,7 +233,7 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     if text.startswith("```"):
         # Remove opening fence (e.g. ```json)
         first_newline = text.index("\n")
-        text = text[first_newline + 1 :]
+        text = text[first_newline + 1:]  # fmt: skip
         # Remove closing fence
         text = text.rsplit("```", 1)[0]
 

@@ -19,6 +19,7 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "E203",   # whitespace before ':' (conflicts with ruff formatter)
     "B008",   # function call in default argument (common in FastAPI/etc)
     "B905",   # zip-without-explicit-strict
 ]
