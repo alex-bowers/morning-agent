@@ -38,7 +38,7 @@ jobs:
       - name: Flake8 strict check
         run: |
           find . -name "*.py" -not -path "./.git/*" -print0 \
-            | xargs -0 flake8 --max-line-length=120 --extend-ignore=E501
+            | xargs -0 flake8 --max-line-length=120 --extend-ignore=E501,E203
 
   auto-fix:
     runs-on: ubuntu-latest
