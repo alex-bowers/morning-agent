@@ -1,7 +1,595 @@
 {
+  "completed_batches": [],
   "recent_categories": [
+    "Visual/spatial puzzle (described in text)",
+    "Riddle",
+    "Word puzzle"
   ],
-  "difficulty_cycle_position": 1,
+  "difficulty_cycle_position": 3,
   "history": [
-  ]
+    {
+      "date": "2026-03-05",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-06",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "folding and cutting paper puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-09",
+      "category": "Maths puzzle",
+      "sub_type": "geometry or area puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-10",
+      "category": "Word puzzle",
+      "sub_type": "wordplay based on letter manipulation (remove, reverse, insert)",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-03-11",
+      "category": "Lateral thinking",
+      "sub_type": "detective-style 'what happened?' scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-12",
+      "category": "Riddle",
+      "sub_type": "time or abstract concept riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-13",
+      "category": "Logic puzzle",
+      "sub_type": "grid/table deduction puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-16",
+      "category": "Word puzzle",
+      "sub_type": "anagram challenge",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-03-17",
+      "category": "Lateral thinking",
+      "sub_type": "paradox or counter-intuitive outcome scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-18",
+      "category": "Riddle",
+      "sub_type": "double-meaning wordplay riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-19",
+      "category": "Logic puzzle",
+      "sub_type": "river-crossing or constraint puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-20",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "matchstick or toothpick puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-03-23",
+      "category": "Word puzzle",
+      "sub_type": "homophone or homophones-in-context puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-24",
+      "category": "Lateral thinking",
+      "sub_type": "strange situation explained by a single key fact",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-25",
+      "category": "Logic puzzle",
+      "sub_type": "weighing or balance puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-03-26",
+      "category": "Maths puzzle",
+      "sub_type": "combinatorics or counting puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-03-30",
+      "category": "Word puzzle",
+      "sub_type": "cryptic definition or double meaning",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-01",
+      "category": "Lateral thinking",
+      "sub_type": "everyday object used in an unexpected way",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-02",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-07",
+      "category": "Logic puzzle",
+      "sub_type": "ordering or sequencing puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-04-08",
+      "category": "Maths puzzle",
+      "sub_type": "algebra puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-09",
+      "category": "Word puzzle",
+      "sub_type": "compound word or portmanteau puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-10",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "rotation or reflection puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-14",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-04-15",
+      "category": "Maths puzzle",
+      "sub_type": "number theory or divisibility puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-17",
+      "category": "Logic puzzle",
+      "sub_type": "truth-tellers and liars puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-20",
+      "category": "Word puzzle",
+      "sub_type": "wordplay based on letter manipulation (remove, reverse, insert)",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-21",
+      "category": "Lateral thinking",
+      "sub_type": "ambiguous sentence or missing context puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-04-22",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "pattern continuation or odd-one-out puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-27",
+      "category": "Logic puzzle",
+      "sub_type": "river-crossing or constraint puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-28",
+      "category": "Maths puzzle",
+      "sub_type": "geometry or area puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-04-29",
+      "category": "Word puzzle",
+      "sub_type": "homophone or homophones-in-context puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-04-30",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-01",
+      "category": "Lateral thinking",
+      "sub_type": "detective-style 'what happened?' scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-02",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "folding and cutting paper puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-05",
+      "category": "Maths puzzle",
+      "sub_type": "rate, ratio or proportion puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-05-05",
+      "category": "Riddle",
+      "sub_type": "time or abstract concept riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-06",
+      "category": "Word puzzle",
+      "sub_type": "cryptic definition or double meaning",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-07",
+      "category": "Logic puzzle",
+      "sub_type": "weighing or balance puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-11",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "shape counting or rearrangement puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-05-12",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-13",
+      "category": "Lateral thinking",
+      "sub_type": "paradox or counter-intuitive outcome scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-15",
+      "category": "Word puzzle",
+      "sub_type": "compound word or portmanteau puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-18",
+      "category": "Logic puzzle",
+      "sub_type": "ordering or sequencing puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-05-19",
+      "category": "Maths puzzle",
+      "sub_type": "combinatorics or counting puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-21",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "rotation or reflection puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-22",
+      "category": "Lateral thinking",
+      "sub_type": "everyday object used in an unexpected way",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-26",
+      "category": "Word puzzle",
+      "sub_type": "wordplay based on letter manipulation (remove, reverse, insert)",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-05-27",
+      "category": "Logic puzzle",
+      "sub_type": "grid/table deduction puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-05-28",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "pattern continuation or odd-one-out puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-01",
+      "category": "Lateral thinking",
+      "sub_type": "strange situation explained by a single key fact",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-02",
+      "category": "Riddle",
+      "sub_type": "double-meaning wordplay riddle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-06-03",
+      "category": "Logic puzzle",
+      "sub_type": "river-crossing or constraint puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-04",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "folding and cutting paper puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-05",
+      "category": "Maths puzzle",
+      "sub_type": "algebra puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-07",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-06-09",
+      "category": "Lateral thinking",
+      "sub_type": "ambiguous sentence or missing context puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-10",
+      "category": "Word puzzle",
+      "sub_type": "homophone or homophones-in-context puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-20",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "shape counting or rearrangement puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-21",
+      "category": "Logic puzzle",
+      "sub_type": "truth-tellers and liars puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-06-22",
+      "category": "Lateral thinking",
+      "sub_type": "detective-style 'what happened?' scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-23",
+      "category": "Maths puzzle",
+      "sub_type": "number theory or divisibility puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-24",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "matchstick or toothpick puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-26",
+      "category": "Logic puzzle",
+      "sub_type": "ordering or sequencing puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-06-29",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-06-30",
+      "category": "Maths puzzle",
+      "sub_type": "geometry or area puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-06",
+      "category": "Word puzzle",
+      "sub_type": "anagram challenge",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-07",
+      "category": "Lateral thinking",
+      "sub_type": "everyday object used in an unexpected way",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-07-08",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "pattern continuation or odd-one-out puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-09",
+      "category": "Maths puzzle",
+      "sub_type": "combinatorics or counting puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-10",
+      "category": "Riddle",
+      "sub_type": "time or abstract concept riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-13",
+      "category": "Logic puzzle",
+      "sub_type": "weighing or balance puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-07-14",
+      "category": "Lateral thinking",
+      "sub_type": "paradox or counter-intuitive outcome scenario",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-16",
+      "category": "Maths puzzle",
+      "sub_type": "rate, ratio or proportion puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-17",
+      "category": "Word puzzle",
+      "sub_type": "compound word or portmanteau puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-20",
+      "category": "Riddle",
+      "sub_type": "double-meaning wordplay riddle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-07-21",
+      "category": "Lateral thinking",
+      "sub_type": "ambiguous sentence or missing context puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-22",
+      "category": "Logic puzzle",
+      "sub_type": "grid/table deduction puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-23",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "folding and cutting paper puzzle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-24",
+      "category": "Maths puzzle",
+      "sub_type": "number theory or divisibility puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-07-27",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-28",
+      "category": "Word puzzle",
+      "sub_type": "wordplay based on letter manipulation (remove, reverse, insert)",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-29",
+      "category": "Lateral thinking",
+      "sub_type": "strange situation explained by a single key fact",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-30",
+      "category": "Visual/spatial puzzle (described in text)",
+      "sub_type": "rotation or reflection puzzle",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-07-31",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-07-31",
+      "category": "Word puzzle",
+      "sub_type": "cryptic definition or double meaning",
+      "difficulty": "Medium"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Easy",
+      "theme": "music & instruments",
+      "question": "I have keys but no locks, I have space but no room, you can enter but you can't go inside. What am I?",
+      "answer": "A keyboard (piano or computer)"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Medium",
+      "theme": "cooking & food",
+      "question": "I have a heart that doesn't beat, a mouth that doesn't speak, and leaves that don't grow on trees. I'm often found in layers and make some people weep. What am I?",
+      "answer": "An artichoke"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Hard",
+      "theme": "sailing & ships",
+      "question": "I travel the world yet stay in one corner. I've never had legs but I've crossed every ocean. I can show you places I've never seen. What am I?",
+      "answer": "A postage stamp"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Easy",
+      "theme": "weather & climate",
+      "question": "I fall from the sky but I'm not rain. I'm white and cold but I don't stay long. Each of me is unique, yet we all look the same from afar. What am I?",
+      "answer": "A snowflake"
+    }
+  ],
+  "recent_sub_types": {
+    "Riddle": [
+      "double-meaning wordplay riddle",
+      "person or profession riddle",
+      "nature riddle"
+    ],
+    "Visual/spatial puzzle (described in text)": [
+      "pattern continuation or odd-one-out puzzle",
+      "folding and cutting paper puzzle",
+      "rotation or reflection puzzle"
+    ],
+    "Maths puzzle": [
+      "combinatorics or counting puzzle",
+      "rate, ratio or proportion puzzle",
+      "number theory or divisibility puzzle"
+    ],
+    "Word puzzle": [
+      "compound word or portmanteau puzzle",
+      "wordplay based on letter manipulation (remove, reverse, insert)",
+      "cryptic definition or double meaning"
+    ],
+    "Lateral thinking": [
+      "paradox or counter-intuitive outcome scenario",
+      "ambiguous sentence or missing context puzzle",
+      "strange situation explained by a single key fact"
+    ],
+    "Logic puzzle": [
+      "ordering or sequencing puzzle",
+      "weighing or balance puzzle",
+      "grid/table deduction puzzle"
+    ]
+  }
 }

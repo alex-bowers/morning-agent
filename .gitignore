@@ -1,8 +1,31 @@
+# Python
 venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment & secrets
 .env
 credentials.json
 token.json
+agent/credentials.json
+agent/token.json
+
+# Logs
 agent.log
 agent_error.log
-__pycache__/
-*.pyc
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
