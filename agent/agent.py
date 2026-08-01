@@ -274,11 +274,7 @@ async def run_agent(
     for tool in italian_tools_response.tools:
         tool_routing[tool.name] = italian_session
 
-    all_mcp_tools = (
-        calendar_tools_response.tools
-        + sports_tools_response.tools
-        + italian_tools_response.tools
-    )
+    all_mcp_tools = calendar_tools_response.tools + sports_tools_response.tools + italian_tools_response.tools
     all_tools = mcp_tools_to_anthropic(all_mcp_tools)
 
     logger.info(

@@ -89,7 +89,9 @@ def parse_headlines(rss_content: str, count: int = NUM_HEADLINES) -> list[dict]:
     for entry in feed.entries[:count]:
         headline = {
             "title": entry.get("title", ""),
-            "source": entry.get("source", {}).get("title", "") if isinstance(entry.get("source"), dict) else str(entry.get("source", "")),
+            "source": entry.get("source", {}).get("title", "")
+            if isinstance(entry.get("source"), dict)
+            else str(entry.get("source", "")),
             "url": entry.get("link", ""),
             "published": entry.get("published", ""),
         }
