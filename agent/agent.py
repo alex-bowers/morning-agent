@@ -27,24 +27,22 @@ from pathlib import Path
 from typing import cast
 
 import anthropic
-from anthropic.types import MessageParam
 import httpx
-from dotenv import load_dotenv
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-
+from anthropic.types import MessageParam
 from brain_teaser import (
     get_next_teaser,
     load_memory,
     load_pool,
     pool_needs_regeneration,
-    record_batch_completed,
     record_teaser_in_history,
     save_memory,
     save_pool,
 )
+from dotenv import load_dotenv
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -368,22 +366,26 @@ async def main():
     anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     logger.info("Connecting to calendar server…")
-    async with stdio_client(calendar_server_params) as (cal_read, cal_write):
-        async with ClientSession(cal_read, cal_write) as calendar_session:
-            await calendar_session.initialize()
-            logger.info("Connected to calendar server.")
+    async with (
+        stdio_client(calendar_server_params) as (cal_read, cal_write),
+        ClientSession(cal_read, cal_write) as calendar_session,
+    ):
+        await calendar_session.initialize()
+        logger.info("Connected to calendar server.")
 
-            logger.info("Connecting to sports highlights server…")
-            async with stdio_client(sports_server_params) as (sports_read, sports_write):
-                async with ClientSession(sports_read, sports_write) as sports_session:
-                    await sports_session.initialize()
-                    logger.info("Connected to sports highlights server.")
+        logger.info("Connecting to sports highlights server…")
+        async with (
+            stdio_client(sports_server_params) as (sports_read, sports_write),
+            ClientSession(sports_read, sports_write) as sports_session,
+        ):
+            await sports_session.initialize()
+            logger.info("Connected to sports highlights server.")
 
-                    final_text = await run_agent(
-                        calendar_session,
-                        sports_session,
-                        anthropic_client,
-                    )
+            final_text = await run_agent(
+                calendar_session,
+                sports_session,
+                anthropic_client,
+            )
 
     logger.info("--- Posting to Slack ---")
     sections = parse_sections(final_text)

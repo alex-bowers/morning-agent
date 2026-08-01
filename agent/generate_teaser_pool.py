@@ -17,15 +17,11 @@ import logging
 import os
 import sys
 from datetime import date
-from pathlib import Path
 
 import anthropic
-from dotenv import load_dotenv
-
 from brain_teaser import (
     AGENT_DIR,
     DIFFICULTY_DISTRIBUTION,
-    MEMORY_FILE,
     POOL_FILE,
     TEASER_CATEGORIES,
     TEASER_SUB_TYPES,
@@ -35,6 +31,7 @@ from brain_teaser import (
     load_pool,
     save_pool,
 )
+from dotenv import load_dotenv
 
 logging.basicConfig(
     level=logging.INFO,

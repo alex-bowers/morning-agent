@@ -170,7 +170,7 @@ def load_pool() -> dict:
             "next_index": 0,
             "teasers": [],
         }
-    with open(POOL_FILE, "r", encoding="utf-8") as f:
+    with open(POOL_FILE, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -260,7 +260,7 @@ def load_memory() -> dict:
     if not MEMORY_FILE.exists():
         return defaults
 
-    with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+    with open(MEMORY_FILE, encoding="utf-8") as f:
         data = json.load(f)
 
     # Merge defaults so new keys appear even in old files

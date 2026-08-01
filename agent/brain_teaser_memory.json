@@ -540,6 +540,15 @@
       "theme": "cooking & food",
       "question": "I have a heart that doesn't beat, a mouth that doesn't speak, and leaves that don't grow on trees. I'm often found in layers and make some people weep. What am I?",
       "answer": "An artichoke"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "classic object riddle",
+      "difficulty": "Hard",
+      "theme": "sailing & ships",
+      "question": "I travel the world yet stay in one corner. I've never had legs but I've crossed every ocean. I can show you places I've never seen. What am I?",
+      "answer": "A postage stamp"
     }
   ],
   "recent_sub_types": {

@@ -17,7 +17,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -61,9 +61,8 @@ def get_calendar_service():
         else:
             logger.info("No valid token found - starting OAuth flow...")
             if not GOOGLE_CREDENTIALS_PATH:
-                raise ValueError(
-                    "GOOGLE_CREDENTIALS_PATH not set in .env. Download credentials.json from Google Cloud Console."
-                )
+                msg = "GOOGLE_CREDENTIALS_PATH not set in .env. Download credentials.json from Google Cloud Console."
+                raise ValueError(msg)
             flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_PATH, SCOPES)
             # Opens browser for user to log in and grant access
             creds = flow.run_local_server(port=0)
