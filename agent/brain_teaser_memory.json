@@ -549,6 +549,15 @@
       "theme": "sailing & ships",
       "question": "I travel the world yet stay in one corner. I've never had legs but I've crossed every ocean. I can show you places I've never seen. What am I?",
       "answer": "A postage stamp"
+    },
+    {
+      "date": "2026-08-01",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Easy",
+      "theme": "weather & climate",
+      "question": "I fall from the sky but I'm not rain. I'm white and cold but I don't stay long. Each of me is unique, yet we all look the same from afar. What am I?",
+      "answer": "A snowflake"
     }
   ],
   "recent_sub_types": {

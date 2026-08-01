@@ -7,6 +7,7 @@ An AI-powered daily briefing agent that posts morning updates to Slack. It uses 
 - **Sports highlights** — Checks if tracked teams played yesterday and posts YouTube highlight links (no spoilers).
 - **Calendar summary** — Fetches today's Google Calendar events and posts a clear summary.
 - **Brain teaser** — Picks a pre-generated teaser from a pool and posts the question, with the answer hidden in a Slack thread reply.
+- **Italian football headlines** — Fetches recent Italian-language calcio headlines from Google News RSS and posts them with English translations in a Slack thread reply.
 
 ## How it works
 
@@ -17,10 +18,10 @@ An AI-powered daily briefing agent that posts morning updates to Slack. It uses 
 │                        agent.py (main)                          │
 │                                                                 │
 │  1. Load next brain teaser from pool                            │
-│  2. Spin up two MCP servers (calendar + sports) via stdio       │
+│  2. Spin up three MCP servers (calendar + sports + Italian) via stdio │
 │  3. Send a prompt to Claude with MCP tools available            │
 │  4. Claude calls MCP tools → gets real-time data                │
-│  5. Claude returns a response with ##SPORTS## / ##CALENDAR##    │
+│  5. Claude returns a response with ##SPORTS## / ##CALENDAR## / ##ITALIAN## │
 │  6. Parse sections → post to Slack channels                     │
 │  7. Post brain teaser (question + thread reply with answer)     │
 │  8. Record teaser in memory, save pool state                    │
@@ -29,11 +30,11 @@ An AI-powered daily briefing agent that posts morning updates to Slack. It uses 
 
 ### Agent loop (Claude + MCP tools)
 
-The agent connects to two MCP servers over stdio and presents their tools to Claude. Claude decides which tools to call based on the user prompt:
+The agent connects to three MCP servers over stdio and presents their tools to Claude. Claude decides which tools to call based on the user prompt:
 
-1. **Prompt sent to Claude** — The prompt asks Claude to check sports results and calendar events, and to format the response using `##SPORTS##` and `##CALENDAR##` section markers.
-2. **Tool discovery** — Both MCP servers advertise their tools. The agent builds a routing map so each tool call goes to the right server.
-3. **Tool call loop** — Claude may call tools multiple times (e.g. `sports_get_highlights`, `calendar_get_todays_events`). The agent routes each call to the correct MCP session and returns the result.
+1. **Prompt sent to Claude** — The prompt asks Claude to check sports results, calendar events, and Italian football headlines, and to format the response using `##SPORTS##`, `##CALENDAR##`, and `##ITALIAN##` section markers.
+2. **Tool discovery** — All three MCP servers advertise their tools. The agent builds a routing map so each tool call goes to the right server.
+3. **Tool call loop** — Claude may call tools multiple times (e.g. `sports_get_highlights`, `calendar_get_todays_events`, `italian_get_headlines`). The agent routes each call to the correct MCP session and returns the result.
 4. **Final response** — When Claude finishes (`stop_reason == "end_turn"`), the agent extracts the text and parses it into sections using the markers.
 5. **Slack posting** — Each section is posted to its designated channel.
 
@@ -43,6 +44,7 @@ The agent connects to two MCP servers over stdio and presents their tools to Cla
 |---|---|---|
 | `##SPORTS##` | `#sports-highlights` | Incoming webhook (`SLACK_WEBHOOK_SPORTS`) |
 | `##CALENDAR##` | `#calendar` | Bot API (`SLACK_BOT_TOKEN`) |
+| `##ITALIAN##` | `#italian-football` | Bot API with thread reply (Italian headlines + English translations) |
 | Brain teaser | `#brain-teaser` | Bot API with thread reply |
 
 ## Project structure
@@ -59,6 +61,7 @@ agent/
 
 servers/
 ├── calendar_server.py          # MCP server — exposes Google Calendar tools
+├── italian_headlines_server.py # MCP server — exposes Italian football headline tools
 └── sports_highlights_server.py # MCP server — exposes ESPN + YouTube sports tools
 ```
 
@@ -114,6 +117,24 @@ Checks whether tracked teams played and finds YouTube highlight videos. Uses two
 - **−1** for titles containing "reaction" or "fan"
 
 Both APIs use exponential backoff retries (3 attempts) on server errors.
+
+### Italian headlines server (`servers/italian_headlines_server.py`)
+
+Fetches recent Italian-language football (calcio) headlines for language learners. Uses Google News RSS — no API key needed.
+
+**Data source:**
+- Google News RSS (`https://news.google.com/rss/search?q=calcio+serie+A&hl=it&gl=IT&ceid=IT:it`) — returns headlines from Italian publications like Gazzetta dello Sport, Sky Sport, Corriere dello Sport, Tuttosport, etc.
+
+**Tools:**
+
+| Tool | Description |
+|---|---|
+| `italian_get_headlines` | Fetches recent Italian calcio headlines (default: 3). Returns title, source, URL, and publication date for each. |
+| `italian_get_stats` | Returns metadata about the data source and configuration. |
+
+**Slack posting:** The Italian section is split — Italian headlines go in the main message, English translations (lines prefixed with `EN:`) go in a thread reply. This mirrors the brain teaser pattern (question in main message, answer in thread).
+
+The RSS feed uses exponential backoff retries (3 attempts) on server errors.
 
 ## Brain teaser system
 
@@ -199,10 +220,12 @@ Easy : Medium : Hard = 1 : 3 : 1
    | `SLACK_BOT_TOKEN` | ✅ | Slack Bot OAuth token (`xoxb-...`) for calendar & brain teaser channels |
    | `SLACK_CHANNEL_CALENDAR` | ✅ | Channel ID for calendar posts (e.g. `C08XXXXXXXXX`) |
    | `SLACK_CHANNEL_BRAIN_TEASER` | ✅ | Channel ID for brain teaser posts |
+   | `SLACK_CHANNEL_ITALIAN` | ✅ | Channel ID for Italian football headlines |
    | `SLACK_WEBHOOK_SPORTS` | ✅ | Incoming webhook URL for sports highlights channel |
    | `YOUTUBE_API_KEY` | ✅ | YouTube Data API v3 key |
    | `LOCAL_TIMEZONE` | No | Timezone for calendar events (default: `Europe/London`) |
    | `MIN_DURATION_SECONDS` | No | Minimum YouTube video length in seconds (default: `300`) |
+   | `ITALIAN_NUM_HEADLINES` | No | Number of Italian headlines to fetch (default: `3`) |
 
 3. **Google Calendar OAuth:**
    - Download `credentials.json` from the [Google Cloud Console](https://console.cloud.google.com/) with the Calendar read-only scope.
@@ -230,6 +253,7 @@ Easy : Medium : Hard = 1 : 3 : 1
 | `#sports-highlights` | Yesterday's game results + YouTube highlights | Incoming webhook |
 | `#calendar` | Today's calendar events summary | Bot API |
 | `#brain-teaser` | Daily brain teaser (answer in thread reply) | Bot API |
+| `#italian-football` | Italian calcio headlines (English translations in thread reply) | Bot API with thread reply |
 
 ## Error handling
 
@@ -238,9 +262,4 @@ Easy : Medium : Hard = 1 : 3 : 1
 - **API retries** — Both ESPN and YouTube API calls use exponential backoff with 3 retries for server errors (5xx). Client errors (4xx) fail immediately without retry.
 - **Atomic writes** — Pool and memory files are written to a `.tmp` file first, then atomically renamed, to prevent corruption from partial writes.
 - **YouTube scoring fallback** — If no videos meet the minimum duration threshold, the server returns no highlight rather than a short clip.
-
-## Slack posting
-
-- **Sports highlights** → `#sports-highlights` channel via webhook
-- **Calendar summary** → `#general` channel via Bot API
-- **Brain teaser** → `#general` channel via Bot API, with the answer in a thread reply
+- **RSS feed retries** — The Italian headlines server uses exponential backoff with 3 retries for server errors (5xx), matching the same pattern as the sports server.
