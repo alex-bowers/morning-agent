@@ -157,6 +157,7 @@ POOL_LOW_THRESHOLD = 5
 # Pool operations
 # ---------------------------------------------------------------------------
 
+
 def load_pool() -> dict:
     """
     Load the teaser pool from the JSON file.
@@ -202,8 +203,11 @@ def get_next_teaser(pool: dict) -> dict | None:
 
         logger.info(
             "Selected teaser #%d: category='%s', sub_type='%s', difficulty='%s', theme='%s'",
-            index, teaser.get("category"), teaser.get("sub_type"),
-            teaser.get("difficulty"), teaser.get("theme"),
+            index,
+            teaser.get("category"),
+            teaser.get("sub_type"),
+            teaser.get("difficulty"),
+            teaser.get("theme"),
         )
         return teaser
 
@@ -225,7 +229,8 @@ def pool_needs_regeneration(pool: dict) -> bool:
     if remaining <= POOL_LOW_THRESHOLD:
         logger.warning(
             "Teaser pool is low (%d remaining out of %d) — generation recommended",
-            remaining, len(teasers),
+            remaining,
+            len(teasers),
         )
         return True
 
@@ -235,6 +240,7 @@ def pool_needs_regeneration(pool: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Memory operations — audit trail & cross-batch dedup
 # ---------------------------------------------------------------------------
+
 
 def load_memory() -> dict:
     """
@@ -279,15 +285,17 @@ def record_teaser_in_history(memory: dict, teaser: dict) -> dict:
     Keeps the history capped at MAX_HISTORY_ENTRIES for cross-batch dedup.
     """
     history = memory.get("history", [])
-    history.append({
-        "date": str(date.today()),
-        "category": teaser.get("category", ""),
-        "sub_type": teaser.get("sub_type", ""),
-        "difficulty": teaser.get("difficulty", ""),
-        "theme": teaser.get("theme", ""),
-        "question": teaser.get("question", ""),
-        "answer": teaser.get("answer", ""),
-    })
+    history.append(
+        {
+            "date": str(date.today()),
+            "category": teaser.get("category", ""),
+            "sub_type": teaser.get("sub_type", ""),
+            "difficulty": teaser.get("difficulty", ""),
+            "theme": teaser.get("theme", ""),
+            "question": teaser.get("question", ""),
+            "answer": teaser.get("answer", ""),
+        }
+    )
     memory["history"] = history[-MAX_HISTORY_ENTRIES:]
     return memory
 
@@ -304,11 +312,13 @@ def get_previous_questions(memory: dict, limit: int = 90) -> list[str]:
 def record_batch_completed(memory: dict, pool: dict) -> dict:
     """Record that a batch has been fully consumed (for audit trail)."""
     batches = memory.get("completed_batches", [])
-    batches.append({
-        "batch_id": pool.get("batch_id", "unknown"),
-        "generated_at": pool.get("generated_at", ""),
-        "teasers_used": pool.get("next_index", 0),
-        "completed_at": str(date.today()),
-    })
+    batches.append(
+        {
+            "batch_id": pool.get("batch_id", "unknown"),
+            "generated_at": pool.get("generated_at", ""),
+            "teasers_used": pool.get("next_index", 0),
+            "completed_at": str(date.today()),
+        }
+    )
     memory["completed_batches"] = batches
     return memory

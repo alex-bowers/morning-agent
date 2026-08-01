@@ -22,10 +22,7 @@ import httpx
 from dotenv import load_dotenv
 from mcp.server import MCPServer
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("sports_highlights_server")
 
 load_dotenv()
@@ -45,10 +42,7 @@ def _parse_iso8601_duration(duration: str) -> int:
     Parse an ISO 8601 duration string (e.g. 'PT6M30S') into total seconds.
     Returns 0 if parsing fails.
     """
-    match = re.match(
-        r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?',
-        duration
-    )
+    match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration)
     if not match:
         return 0
     hours = int(match.group(1) or 0)
@@ -65,45 +59,42 @@ TRACKED_TEAMS = {
         "sport": "football",
         "league": "nfl",
         "espn_name": "New England Patriots",
-        "youtube_search": "New England Patriots highlights"
+        "youtube_search": "New England Patriots highlights",
     },
     "Boston Celtics": {
         "sport": "basketball",
         "league": "nba",
         "espn_name": "Boston Celtics",
-        "youtube_search": "Boston Celtics highlights"
+        "youtube_search": "Boston Celtics highlights",
     },
     "Boston Bruins": {
         "sport": "hockey",
         "league": "nhl",
         "espn_name": "Boston Bruins",
-        "youtube_search": "Boston Bruins highlights"
+        "youtube_search": "Boston Bruins highlights",
     },
     "Boston Red Sox": {
         "sport": "baseball",
         "league": "mlb",
         "espn_name": "Boston Red Sox",
-        "youtube_search": "Boston Red Sox highlights"
+        "youtube_search": "Boston Red Sox highlights",
     },
     "New England Revolution": {
         "sport": "soccer",
         "league": "usa.1",
         "espn_name": "New England Revolution",
-        "youtube_search": "New England Revolution highlights"
+        "youtube_search": "New England Revolution highlights",
     },
     "Palermo F.C.": {
         "sport": "soccer",
         "league": "ita.2",
         "espn_name": "Palermo",
-        "youtube_search": "Palermo highlights"
-    }
+        "youtube_search": "Palermo highlights",
+    },
 }
 
 
-async def fetch_espn_scoreboard(
-        sport: str,
-        league: str,
-        game_date: str) -> dict:
+async def fetch_espn_scoreboard(sport: str, league: str, game_date: str) -> dict:
     """
     Args:
         sport:     e.g. 'football', 'basketball', 'hockey', 'baseball', 'soccer'
@@ -124,13 +115,9 @@ async def fetch_espn_scoreboard(
             if e.response.status_code < 500:
                 logger.error(f"ESPN API client error for {sport}/{league}: {e}")
                 return {}
-            logger.warning(
-                f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}"
-            )
+            logger.warning(f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}")
         except httpx.HTTPError as e:
-            logger.warning(
-                f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}"
-            )
+            logger.warning(f"ESPN API retry {attempt}/{MAX_RETRIES} for {sport}/{league}: {e}")
         if attempt < MAX_RETRIES:
             await asyncio.sleep(RETRY_BACKOFF_FACTOR * 2 ** (attempt - 1))
 
@@ -153,10 +140,8 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
         for competition in competitions:
             competitors = competition.get("competitors", [])
 
-            home_team = next(
-                (c for c in competitors if c.get("homeAway") == "home"), None)
-            away_team = next(
-                (c for c in competitors if c.get("homeAway") == "away"), None)
+            home_team = next((c for c in competitors if c.get("homeAway") == "home"), None)
+            away_team = next((c for c in competitors if c.get("homeAway") == "away"), None)
 
             if not home_team or not away_team:
                 continue
@@ -172,9 +157,7 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
 
             our_team = home_team if team_name.lower() == home_name.lower() else away_team
             opponent = away_team if team_name.lower() == home_name.lower() else home_team
-            opponent_name = opponent.get(
-                "team", {}).get(
-                "displayName", "Unknown")
+            opponent_name = opponent.get("team", {}).get("displayName", "Unknown")
 
             our_score = int(our_team.get("score", 0) or 0)
             their_score = int(opponent.get("score", 0) or 0)
@@ -194,7 +177,7 @@ def extract_game_from_espn(espn_data: dict, team_name: str) -> dict | None:
                 "score": score,
                 "result": result,
                 "game_date": event.get("date", "")[:10],  # trim to YYYY-MM-DD
-                "game_name": event.get("name", f"{team_name} vs {opponent_name}")
+                "game_name": event.get("name", f"{team_name} vs {opponent_name}"),
             }
 
     return None
@@ -236,10 +219,7 @@ def _score_youtube_result(item: dict) -> int:
     return score
 
 
-async def search_youtube_highlights(
-        team_name: str,
-        game_date: str,
-        opponent: str) -> dict | None:
+async def search_youtube_highlights(team_name: str, game_date: str, opponent: str) -> dict | None:
     """
     Search YouTube for highlight videos for a specific game.
 
@@ -260,7 +240,7 @@ async def search_youtube_highlights(
         "maxResults": 5,
         "order": "relevance",
         "publishedAfter": f"{game_date}T00:00:00Z",
-        "key": YOUTUBE_API_KEY
+        "key": YOUTUBE_API_KEY,
     }
 
     # Retry the YouTube search API call with exponential backoff
@@ -276,13 +256,9 @@ async def search_youtube_highlights(
             if e.response.status_code < 500:
                 logger.error(f"YouTube API client error for {team_name}: {e}")
                 return None
-            logger.warning(
-                f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}"
-            )
+            logger.warning(f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}")
         except httpx.HTTPError as e:
-            logger.warning(
-                f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}"
-            )
+            logger.warning(f"YouTube search retry {attempt}/{MAX_RETRIES} for {team_name}: {e}")
         if attempt < MAX_RETRIES:
             await asyncio.sleep(RETRY_BACKOFF_FACTOR * 2 ** (attempt - 1))
     else:
@@ -298,35 +274,26 @@ async def search_youtube_highlights(
             logger.warning(f"No YouTube results found for: {query}")
             return None
 
-        video_ids = [
-            item.get("id", {}).get("videoId")
-            for item in items
-            if item.get("id", {}).get("videoId")
-        ]
+        video_ids = [item.get("id", {}).get("videoId") for item in items if item.get("id", {}).get("videoId")]
         durations = {}
         if video_ids:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                videos_response = await client.get(YOUTUBE_VIDEOS_URL, params={
-                    "part": "contentDetails",
-                    "id": ",".join(video_ids),
-                    "key": YOUTUBE_API_KEY
-                })
+                videos_response = await client.get(
+                    YOUTUBE_VIDEOS_URL,
+                    params={"part": "contentDetails", "id": ",".join(video_ids), "key": YOUTUBE_API_KEY},
+                )
                 videos_response.raise_for_status()
                 for v in videos_response.json().get("items", []):
                     vid_id = v.get("id")
-                    iso_duration = v.get(
-                        "contentDetails", {}).get("duration", "PT0S")
+                    iso_duration = v.get("contentDetails", {}).get("duration", "PT0S")
                     durations[vid_id] = _parse_iso8601_duration(iso_duration)
 
         is_long_enough = [
-            item for item in items
-            if durations.get(item.get("id", {}).get("videoId"), 0) >= MIN_DURATION_SECONDS
+            item for item in items if durations.get(item.get("id", {}).get("videoId"), 0) >= MIN_DURATION_SECONDS
         ]
 
         if not is_long_enough:
-            logger.warning(
-                f"No YouTube results over {MIN_DURATION_SECONDS // 60} minutes found for: {query}"
-            )
+            logger.warning(f"No YouTube results over {MIN_DURATION_SECONDS // 60} minutes found for: {query}")
             return None
 
         scored = sorted(is_long_enough, key=_score_youtube_result, reverse=True)
@@ -366,8 +333,7 @@ class SportsDataManager:
     Orchestrates ESPN and YouTube API calls to produce highlight results.
     """
 
-    async def get_teams_that_played(
-            self, game_date: str | None = None) -> list[str]:
+    async def get_teams_that_played(self, game_date: str | None = None) -> list[str]:
         """
         Check ESPN for each tracked team and return those that played
         on the given date (defaults to yesterday).
@@ -391,28 +357,19 @@ class SportsDataManager:
             league_key = f"{config['sport']}/{config['league']}"
 
             if league_key not in leagues_checked:
-                espn_data = await fetch_espn_scoreboard(
-                    config['sport'], config['league'], espn_date
-                )
+                espn_data = await fetch_espn_scoreboard(config["sport"], config["league"], espn_date)
                 leagues_checked[league_key] = espn_data
 
             espn_data = leagues_checked[league_key]
-            game = extract_game_from_espn(espn_data, config['espn_name'])
+            game = extract_game_from_espn(espn_data, config["espn_name"])
 
             if game:
                 teams_that_played.append(team_name)
-                logger.info(
-                    f"Found game: {team_name} vs {
-                        game['opponent']} ({
-                        game['result']})")
+                logger.info(f"Found game: {team_name} vs {game['opponent']} ({game['result']})")
 
         return sorted(teams_that_played)
 
-    async def get_highlights(
-        self,
-        team: str | None = None,
-        game_date: str | None = None
-    ) -> list[dict]:
+    async def get_highlights(self, team: str | None = None, game_date: str | None = None) -> list[dict]:
         """
         Get game results and YouTube highlight URLs for teams that played.
 
@@ -426,11 +383,7 @@ class SportsDataManager:
         target_date = game_date or str(date.today() - timedelta(days=1))
         espn_date = target_date.replace("-", "")
 
-        teams_to_check = (
-            {team: TRACKED_TEAMS[team]}
-            if team and team in TRACKED_TEAMS
-            else TRACKED_TEAMS
-        )
+        teams_to_check = {team: TRACKED_TEAMS[team]} if team and team in TRACKED_TEAMS else TRACKED_TEAMS
 
         results = []
         leagues_checked = {}
@@ -439,36 +392,32 @@ class SportsDataManager:
             league_key = f"{config['sport']}/{config['league']}"
 
             if league_key not in leagues_checked:
-                espn_data = await fetch_espn_scoreboard(
-                    config['sport'], config['league'], espn_date
-                )
+                espn_data = await fetch_espn_scoreboard(config["sport"], config["league"], espn_date)
                 leagues_checked[league_key] = espn_data
 
             espn_data = leagues_checked[league_key]
-            game = extract_game_from_espn(espn_data, config['espn_name'])
+            game = extract_game_from_espn(espn_data, config["espn_name"])
 
             if not game:
                 logger.info(f"No game found for {team_name} on {target_date}")
                 continue
 
             logger.info(f"Searching YouTube for {team_name} highlights...")
-            highlight = await search_youtube_highlights(
-                team_name,
-                target_date,
-                game['opponent']
-            )
+            highlight = await search_youtube_highlights(team_name, target_date, game["opponent"])
 
-            results.append({
-                "team": team_name,
-                "opponent": game['opponent'],
-                "score": game['score'],
-                "result": game['result'],
-                "game_date": target_date,
-                "highlight_title": highlight['title'] if highlight else None,
-                "highlight_url": highlight['url'] if highlight else None,
-                "highlight_channel": highlight['channel'] if highlight else None,
-                "highlight_found": highlight is not None
-            })
+            results.append(
+                {
+                    "team": team_name,
+                    "opponent": game["opponent"],
+                    "score": game["score"],
+                    "result": game["result"],
+                    "game_date": target_date,
+                    "highlight_title": highlight["title"] if highlight else None,
+                    "highlight_url": highlight["url"] if highlight else None,
+                    "highlight_channel": highlight["channel"] if highlight else None,
+                    "highlight_found": highlight is not None,
+                }
+            )
 
         return results
 
@@ -476,9 +425,9 @@ class SportsDataManager:
         return {
             "tracked_teams": list(TRACKED_TEAMS.keys()),
             "team_count": len(TRACKED_TEAMS),
-            "sports_covered": list({v['league'].upper() for v in TRACKED_TEAMS.values()}),
+            "sports_covered": list({v["league"].upper() for v in TRACKED_TEAMS.values()}),
             "data_sources": ["ESPN unofficial API", "YouTube Data API v3"],
-            "note": "Checks yesterday's games by default"
+            "note": "Checks yesterday's games by default",
         }
 
 

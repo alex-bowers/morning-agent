@@ -247,7 +247,6 @@ async def run_agent(
                 "Please do my morning checks and format your response using "
                 "the exact section markers below. Each section must start and "
                 "end with its marker.\n\n"
-
                 "##SPORTS##\n"
                 "Check if any tracked teams played yesterday: "
                 "New England sports teams (Patriots, Bruins, "
@@ -256,16 +255,14 @@ async def run_agent(
                 "Avoid including any scores or spoilers in the text - just the highlights. "
                 "If no teams played, say so.\n"
                 "##SPORTS##\n\n"
-
                 "##CALENDAR##\n"
                 "Fetch today's calendar events and give me a clear summary "
                 "of my day. List each event with its time and title. "
                 "If I have no events today, say so.\n"
                 "##CALENDAR##\n\n"
-
                 "Important: keep all markers exactly as shown. "
                 "They are used to route each section automatically."
-            )
+            ),
         }
     ]
 
@@ -283,18 +280,17 @@ async def run_agent(
         logger.info("Claude stop reason: '%s'", response.stop_reason)
 
         if response.stop_reason == "end_turn":
-            final_text = next(
-                block.text for block in response.content
-                if block.type == "text"
-            )
+            final_text = next(block.text for block in response.content if block.type == "text")
             logger.info("--- Final response from Claude ---\n%s", final_text)
             return final_text
 
         if response.stop_reason == "tool_use":
-            messages.append({
-                "role": "assistant",
-                "content": [block.model_dump() for block in response.content],
-            })
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": [block.model_dump() for block in response.content],
+                }
+            )
 
             tool_results: list[dict] = []
 
@@ -312,23 +308,23 @@ async def run_agent(
                 else:
                     tool_response = await session.call_tool(block.name, block.input)
                     first = tool_response.content[0] if tool_response.content else None
-                    result_text = (
-                        first.text
-                        if first is not None and first.type == "text"
-                        else "No result"
-                    )
+                    result_text = first.text if first is not None and first.type == "text" else "No result"
                     logger.info("Tool result: %s", result_text[:200])
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text,
-                })
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text,
+                    }
+                )
 
-            messages.append({
-                "role": "user",
-                "content": tool_results,
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": tool_results,
+                }
+            )
 
 
 async def main():
@@ -338,8 +334,7 @@ async def main():
     missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
     if missing:
         logger.error(
-            "Missing required environment variables: %s. "
-            "Check your .env file.",
+            "Missing required environment variables: %s. Check your .env file.",
             ", ".join(missing),
         )
         return
@@ -350,13 +345,11 @@ async def main():
 
     if teaser is None:
         logger.error(
-            "No teasers available in the pool. "
-            "Run `python agent/generate_teaser_pool.py` to generate a new batch."
+            "No teasers available in the pool. Run `python agent/generate_teaser_pool.py` to generate a new batch."
         )
     elif pool_needs_regeneration(pool):
         logger.warning(
-            "Teaser pool is running low (%d remaining). "
-            "Run `python agent/generate_teaser_pool.py` soon to replenish.",
+            "Teaser pool is running low (%d remaining). Run `python agent/generate_teaser_pool.py` soon to replenish.",
             len(pool["teasers"]) - pool["next_index"],
         )
 
@@ -410,7 +403,7 @@ async def main():
         post_with_thread_reply(
             SLACK_CHANNEL_BRAIN_TEASER,
             teaser["question"],
-            f'Answer: {teaser["answer"]}',
+            f"Answer: {teaser['answer']}",
         )
         # Record in memory for cross-batch dedup
         memory = load_memory()

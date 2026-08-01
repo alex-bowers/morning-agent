@@ -84,9 +84,7 @@ def build_distribution_spec(count: int) -> str:
                 diff_parts.append(f"{n} {diff}")
 
         lines.append(
-            f"  {category}: {cat_count} teasers "
-            f"(difficulty mix: {', '.join(diff_parts)})\n"
-            + "\n".join(sub_breakdown)
+            f"  {category}: {cat_count} teasers (difficulty mix: {', '.join(diff_parts)})\n" + "\n".join(sub_breakdown)
         )
 
     return "\n".join(lines)
@@ -100,9 +98,7 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
 
     previous_block = ""
     if previous_questions:
-        numbered = "\n".join(
-            f"  {i+1}. {q}" for i, q in enumerate(previous_questions)
-        )
+        numbered = "\n".join(f"  {i + 1}. {q}" for i, q in enumerate(previous_questions))
         previous_block = (
             "\n\nIMPORTANT — Do NOT repeat or closely resemble any of these "
             "previously generated questions:\n" + numbered
@@ -112,13 +108,10 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
         f"Generate exactly {count} diverse brain teasers for a daily puzzle subscription. "
         "Each teaser must have a unique question — no duplicates or near-duplicates within "
         "the batch or with previously generated questions.\n\n"
-
         "DISTRIBUTION TARGETS (approximately):\n"
         f"{distribution}\n\n"
-
         f"THEMES — Assign a unique theme to each teaser from this list (rotate through them, "
         f"don't repeat a theme within the same category): {themes_list}\n\n"
-
         "QUALITY REQUIREMENTS:\n"
         "- Each question must be genuinely puzzling and original — avoid well-known riddles "
         "or puzzles that appear in common collections\n"
@@ -129,7 +122,6 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
         "can visualise it\n"
         "- Difficulty should match the label: Easy puzzles should be solvable in under "
         "a minute; Medium in 2-5 minutes; Hard in 5-15 minutes\n\n"
-
         "OUTPUT FORMAT — Return ONLY a JSON array. Each element must be an object with "
         "these exact keys:\n"
         '  - "id": integer starting at 1\n'
@@ -139,7 +131,6 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
         '  - "theme": one of the themes from the theme list\n'
         '  - "question": the puzzle question text\n'
         '  - "answer": the answer text\n\n'
-
         "Return ONLY the JSON array — no markdown fences, no commentary, no preamble."
         f"{previous_block}"
     )
@@ -152,15 +143,13 @@ def validate_teasers(teasers: list[dict], count: int) -> list[str]:
     warnings = []
 
     if len(teasers) != count:
-        warnings.append(
-            f"Expected {count} teasers, got {len(teasers)}"
-        )
+        warnings.append(f"Expected {count} teasers, got {len(teasers)}")
 
     required_keys = {"id", "category", "sub_type", "difficulty", "theme", "question", "answer"}
     for i, t in enumerate(teasers):
         missing = required_keys - set(t.keys())
         if missing:
-            warnings.append(f"Teaser #{i+1} missing keys: {missing}")
+            warnings.append(f"Teaser #{i + 1} missing keys: {missing}")
 
     # Check categories are represented
     categories_seen = set()
@@ -183,9 +172,7 @@ def validate_teasers(teasers: list[dict], count: int) -> list[str]:
         if cat not in TEASER_CATEGORIES:
             warnings.append(f"Unknown category: '{cat}'")
         elif t.get("sub_type", "") not in TEASER_SUB_TYPES.get(cat, []):
-            warnings.append(
-                f"Unknown sub_type '{t.get('sub_type')}' for category '{cat}'"
-            )
+            warnings.append(f"Unknown sub_type '{t.get('sub_type')}' for category '{cat}'")
 
     # Check difficulties
     for t in teasers:
@@ -206,9 +193,9 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     if existing_pool.get("teasers") and existing_pool.get("next_index", 0) < len(existing_pool["teasers"]):
         remaining = len(existing_pool["teasers"]) - existing_pool["next_index"]
         logger.warning(
-            "Existing pool still has %d teaser(s) remaining (batch_id=%s). "
-            "Generating a new pool will replace it.",
-            remaining, existing_pool.get("batch_id", "unknown"),
+            "Existing pool still has %d teaser(s) remaining (batch_id=%s). Generating a new pool will replace it.",
+            remaining,
+            existing_pool.get("batch_id", "unknown"),
         )
 
     # Load memory for cross-batch dedup
@@ -249,7 +236,7 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     if text.startswith("```"):
         # Remove opening fence (e.g. ```json)
         first_newline = text.index("\n")
-        text = text[first_newline + 1:]
+        text = text[first_newline + 1 :]
         # Remove closing fence
         text = text.rsplit("```", 1)[0]
 
@@ -308,7 +295,9 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     save_pool(pool)
     logger.info(
         "✓ Saved %d teasers to %s (batch_id=%s)",
-        len(teasers), POOL_FILE, batch_id,
+        len(teasers),
+        POOL_FILE,
+        batch_id,
     )
 
     # Print summary
@@ -328,11 +317,10 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate a new batch of brain teasers for the daily pool."
-    )
+    parser = argparse.ArgumentParser(description="Generate a new batch of brain teasers for the daily pool.")
     parser.add_argument(
-        "--count", "-n",
+        "--count",
+        "-n",
         type=int,
         default=DEFAULT_COUNT,
         help=f"Number of teasers to generate (default: {DEFAULT_COUNT})",

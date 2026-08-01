@@ -29,10 +29,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from mcp.server import MCPServer
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("calendar_server")
 
 load_dotenv()
@@ -40,9 +37,7 @@ load_dotenv()
 GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH")
 GOOGLE_SHARED_CALENDAR_ID = os.getenv("GOOGLE_SHARED_CALENDAR_ID")
 
-TOKEN_PATH = str(
-    Path(GOOGLE_CREDENTIALS_PATH).parent / "token.json"
-) if GOOGLE_CREDENTIALS_PATH else "token.json"
+TOKEN_PATH = str(Path(GOOGLE_CREDENTIALS_PATH).parent / "token.json") if GOOGLE_CREDENTIALS_PATH else "token.json"
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
@@ -67,12 +62,9 @@ def get_calendar_service():
             logger.info("No valid token found - starting OAuth flow...")
             if not GOOGLE_CREDENTIALS_PATH:
                 raise ValueError(
-                    "GOOGLE_CREDENTIALS_PATH not set in .env. "
-                    "Download credentials.json from Google Cloud Console."
+                    "GOOGLE_CREDENTIALS_PATH not set in .env. Download credentials.json from Google Cloud Console."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(
-                GOOGLE_CREDENTIALS_PATH, SCOPES
-            )
+            flow = InstalledAppFlow.from_client_secrets_file(GOOGLE_CREDENTIALS_PATH, SCOPES)
             # Opens browser for user to log in and grant access
             creds = flow.run_local_server(port=0)
 
@@ -116,30 +108,29 @@ class CalendarDataManager:
         ]
 
         if GOOGLE_SHARED_CALENDAR_ID:
-            calendars_to_fetch.append(
-                (GOOGLE_SHARED_CALENDAR_ID, "Shared")
-            )
+            calendars_to_fetch.append((GOOGLE_SHARED_CALENDAR_ID, "Shared"))
         else:
-            logger.warning(
-                "GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
+            logger.warning("GOOGLE_SHARED_CALENDAR_ID not set - fetching primary only")
 
         all_events = []
 
         for calendar_id, calendar_label in calendars_to_fetch:
             try:
-                result = service.events().list(
-                    calendarId=calendar_id,
-                    timeMin=time_min,
-                    timeMax=time_max,
-                    singleEvents=True,
-                    orderBy="startTime",
-                    maxResults=50
-                ).execute()
+                result = (
+                    service.events()
+                    .list(
+                        calendarId=calendar_id,
+                        timeMin=time_min,
+                        timeMax=time_max,
+                        singleEvents=True,
+                        orderBy="startTime",
+                        maxResults=50,
+                    )
+                    .execute()
+                )
 
                 events = result.get("items", [])
-                logger.info(
-                    f"Fetched {
-                        len(events)} events from {calendar_label} calendar")
+                logger.info(f"Fetched {len(events)} events from {calendar_label} calendar")
 
                 for event in events:
                     parsed = self._parse_event(event, calendar_label)
@@ -147,8 +138,7 @@ class CalendarDataManager:
                         all_events.append(parsed)
 
             except HttpError as e:
-                logger.error(
-                    f"Google Calendar API error for {calendar_label}: {e}")
+                logger.error(f"Google Calendar API error for {calendar_label}: {e}")
                 continue
 
         all_events.sort(key=lambda e: e["start_time"])
@@ -200,7 +190,7 @@ class CalendarDataManager:
             "calendars": calendars,
             "timezone": LOCAL_TIMEZONE,
             "scope": "Today's events (timed and all-day)",
-            "data_source": "Google Calendar API v3"
+            "data_source": "Google Calendar API v3",
         }
 
 
