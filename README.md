@@ -53,7 +53,7 @@ The agent connects to three MCP servers over stdio and presents their tools to C
 agent/
 ├── agent.py                    # Main agent — MCP client loop, Claude orchestration, Slack posting
 ├── brain_teaser.py             # Pool management — load/save pool, get next teaser, memory/audit trail
-├── generate_teaser_pool.py     # Batch generation script — generates ~90 teasers via Claude API
+├── generate_teaser_pool.py     # Batch generation script — generates ~60 teasers via Claude API
 ├── brain_teaser_memory.json    # Audit trail + cross-batch dedup history (auto-managed)
 ├── teaser_pool.json            # Pre-generated pool of teasers (consumed daily, auto-managed)
 ├── credentials.json            # Google Calendar OAuth credentials (you create this)
@@ -140,13 +140,13 @@ The RSS feed uses exponential backoff retries (3 attempts) on server errors.
 
 The brain teaser uses a **pool-based architecture** to avoid repetition:
 
-- **Pool** (`teaser_pool.json`) — A batch of ~90 pre-generated teasers, consumed one per day.
+- **Pool** (`teaser_pool.json`) — A batch of ~60 pre-generated teasers, consumed one per day.
 - **Memory** (`brain_teaser_memory.json`) — An audit trail recording every posted teaser, used for cross-batch deduplication (keeps up to 200 entries).
 
 ### How it works
 
-1. Every ~3 months, run `python agent/generate_teaser_pool.py` to create a fresh batch.
-2. Each day, `agent.py` picks the next teaser from the pool (sequential, not random — ensures even distribution).
+1. Every ~2 months, run `python agent/generate_teaser_pool.py` to create a fresh batch.
+2. Each day, `agent.py` picks the next teaser from the randomly ordered pool.
 3. The question is posted to `#brain-teaser`, with the answer in a thread reply.
 4. The posted teaser is recorded in memory for future dedup.
 5. When the pool runs low (≤5 remaining), a warning is logged.
@@ -157,11 +157,11 @@ The brain teaser uses a **pool-based architecture** to avoid repetition:
 The generator (`generate_teaser_pool.py`):
 
 1. Loads previously generated questions from memory to avoid cross-batch duplicates.
-2. Builds a distribution spec that spreads teasers across 6 categories, their sub-types, 50 themes, and 3 difficulty levels (Easy : Medium : Hard = 1 : 3 : 1).
+2. Builds a distribution spec that spreads teasers across 6 categories, their sub-types, 50 themes, and 2 difficulty levels (Medium : Hard = 3 : 1).
 3. Sends the prompt to Claude and requests a JSON array of teaser objects.
 4. Normalizes Claude's category/sub-type names to match the canonical lists (e.g. "Visual puzzle" → "Visual/spatial puzzle (described in text)").
 5. Validates the output — checks count, required fields, category coverage, duplicate detection, and valid difficulty labels.
-6. Saves the pool with a batch ID and timestamp.
+6. Randomises the order and saves the pool with a batch ID and timestamp.
 
 **Teaser object format:**
 
@@ -190,7 +190,7 @@ The generator (`generate_teaser_pool.py`):
 
 ### Difficulty distribution
 
-Easy : Medium : Hard = 1 : 3 : 1
+Medium : Hard = 3 : 1
 
 ### Themes
 
@@ -232,13 +232,13 @@ Easy : Medium : Hard = 1 : 3 : 1
    - Place it at the path specified by `GOOGLE_CREDENTIALS_PATH`.
    - On first run, the calendar server opens a browser for OAuth consent and saves `token.json` automatically.
 
-4. **Generate the teaser pool** (first time, and every ~3 months):
+4. **Generate the teaser pool** (first time, and every ~2 months):
    ```bash
    .venv/bin/python3 agent/generate_teaser_pool.py
    ```
 
    Options:
-   - `--count N` — generate N teasers instead of the default 90
+   - `--count N` — generate N teasers instead of the default 60
    - `--dry-run` — print the prompt without calling Claude (for debugging)
 
 5. **Run the agent:**

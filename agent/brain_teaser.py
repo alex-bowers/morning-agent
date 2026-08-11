@@ -2,7 +2,7 @@
 Brain Teaser Management — Pool-Based System
 =============================================
 Manages a pre-generated pool of brain teasers that is created in batch
-(every ~3 months) and consumed one per day. This eliminates repetition
+(every ~2 months) and consumed one per day. This eliminates repetition
 because the batch generation can see all teasers at once and guarantee
 no duplicates.
 
@@ -92,7 +92,6 @@ TEASER_SUB_TYPES = {
 }
 
 DIFFICULTY_DISTRIBUTION = {
-    "Easy": 1,
     "Medium": 3,
     "Hard": 1,
 }

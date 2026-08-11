@@ -6,7 +6,7 @@ across categories, sub-types, difficulties, and themes. Includes past
 questions from memory to avoid cross-batch duplication.
 
 Usage:
-    python agent/generate_teaser_pool.py            # Generate 90 teasers (default)
+    python agent/generate_teaser_pool.py            # Generate 60 teasers (default)
     python agent/generate_teaser_pool.py --count 30 # Generate 30 teasers
     python agent/generate_teaser_pool.py --dry-run  # Show prompt without calling Claude
 """
@@ -15,6 +15,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import sys
 from datetime import date
 
@@ -44,7 +45,9 @@ load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 
-DEFAULT_COUNT = 90
+DEFAULT_COUNT = 60
+# Keep non-streaming requests below the Anthropic SDK's ten-minute threshold.
+MAX_OUTPUT_TOKENS = 20_000
 
 
 def build_distribution_spec(count: int) -> str:
@@ -113,18 +116,20 @@ def build_prompt(count: int, previous_questions: list[str]) -> str:
         "- Each question must be genuinely puzzling and original — avoid well-known riddles "
         "or puzzles that appear in common collections\n"
         "- Each answer must be clear, unambiguous, and satisfying\n"
+        "- Keep each question and answer concise. Include only the final answer and a "
+        "short explanation; do not include alternative guesses, drafts, or reasoning\n"
         "- Questions should be self-contained — no external knowledge beyond general "
         "awareness is required\n"
         "- For visual/spatial puzzles, describe the setup clearly in text so the reader "
         "can visualise it\n"
-        "- Difficulty should match the label: Easy puzzles should be solvable in under "
-        "a minute; Medium in 2-5 minutes; Hard in 5-15 minutes\n\n"
+        "- Difficulty should match the label: Medium puzzles should be solvable in 2-5 "
+        "minutes; Hard in 5-15 minutes\n\n"
         "OUTPUT FORMAT — Return ONLY a JSON array. Each element must be an object with "
         "these exact keys:\n"
         '  - "id": integer starting at 1\n'
         '  - "category": one of the categories listed above\n'
         '  - "sub_type": one of the sub-types for that category\n'
-        '  - "difficulty": "Easy", "Medium", or "Hard"\n'
+        '  - "difficulty": "Medium" or "Hard"\n'
         '  - "theme": one of the themes from the theme list\n'
         '  - "question": the puzzle question text\n'
         '  - "answer": the answer text\n\n'
@@ -174,7 +179,7 @@ def validate_teasers(teasers: list[dict], count: int) -> list[str]:
     # Check difficulties
     for t in teasers:
         diff = t.get("difficulty", "")
-        if diff not in ("Easy", "Medium", "Hard"):
+        if diff not in DIFFICULTY_DISTRIBUTION:
             warnings.append(f"Unknown difficulty: '{diff}'")
 
     return warnings
@@ -213,7 +218,7 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     logger.info("Sending generation prompt to Claude (%d chars)…", len(prompt))
     response = client.messages.create(
         model=ANTHROPIC_MODEL,
-        max_tokens=16384,
+        max_tokens=MAX_OUTPUT_TOKENS,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -227,6 +232,13 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
     with open(debug_file, "w", encoding="utf-8") as f:
         f.write(raw_text)
     logger.info("Saved raw Claude response to %s (%d chars)", debug_file, len(raw_text))
+
+    if response.stop_reason == "max_tokens":
+        logger.error(
+            "Claude response was truncated at the %d-token output limit. "
+            "The pool was not saved; try again with a larger limit or a smaller count.",
+            MAX_OUTPUT_TOKENS,
+        )
 
     # Parse JSON — strip markdown fences if Claude adds them
     text = raw_text.strip()
@@ -279,6 +291,20 @@ def generate_pool(count: int, dry_run: bool = False) -> None:
         )
     else:
         logger.info("All validation checks passed ✓")
+
+    invalid_difficulties = sorted(
+        {t.get("difficulty", "") for t in teasers if t.get("difficulty", "") not in DIFFICULTY_DISTRIBUTION}
+    )
+    if invalid_difficulties:
+        logger.error(
+            "Generated teasers contain unsupported difficulty label(s): %s. Pool not saved.",
+            ", ".join(invalid_difficulties),
+        )
+        sys.exit(1)
+
+    # Claude tends to return teasers grouped by category. Shuffle the batch so
+    # sequential daily consumption still gives a varied category mix.
+    random.shuffle(teasers)
 
     # Build the pool
     batch_id = f"{date.today().strftime('%Y-Q')}{(date.today().month - 1) // 3 + 1}"

@@ -558,6 +558,60 @@
       "theme": "weather & climate",
       "question": "I fall from the sky but I'm not rain. I'm white and cold but I don't stay long. Each of me is unique, yet we all look the same from afar. What am I?",
       "answer": "A snowflake"
+    },
+    {
+      "date": "2026-08-03",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Medium",
+      "theme": "ocean & marine life",
+      "question": "I'm born in the depths where light never reaches, I travel thousands of miles without feet, I can be calm or fierce, and I eventually die on the shore. What am I?",
+      "answer": "A wave"
+    },
+    {
+      "date": "2026-08-04",
+      "category": "Riddle",
+      "sub_type": "nature riddle",
+      "difficulty": "Medium",
+      "theme": "gardens & plants",
+      "question": "I start my life in darkness, break through into light, reach for the sky but stay rooted to earth, and when I'm cut down, my rings tell my story. What am I?",
+      "answer": "A tree"
+    },
+    {
+      "date": "2026-08-05",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Easy",
+      "theme": "medicine & health",
+      "question": "I see you when you're sick, I listen to your heart, I ask you to say 'ahh' but I'm not a singer. Who am I?",
+      "answer": "A doctor"
+    },
+    {
+      "date": "2026-08-06",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Medium",
+      "theme": "architecture & buildings",
+      "question": "I design homes you'll never sleep in, I create walls that hold no weight, and my mistakes are erased before they're built. Who am I?",
+      "answer": "An architect"
+    },
+    {
+      "date": "2026-08-07",
+      "category": "Riddle",
+      "sub_type": "person or profession riddle",
+      "difficulty": "Medium",
+      "theme": "literature & books",
+      "question": "I live with thousands of stories but tell none of my own. I'm surrounded by knowledge yet remain silent. I help people escape without ever leaving. Who am I?",
+      "answer": "A librarian"
+    },
+    {
+      "date": "2026-08-10",
+      "category": "Riddle",
+      "sub_type": "time or abstract concept riddle",
+      "difficulty": "Medium",
+      "theme": "clocks & timekeeping",
+      "question": "I'm always coming but never arrive. When you wait for me, I seem slower. You can't see me, touch me, or stop me, yet everyone spends me. What am I?",
+      "answer": "Tomorrow (or the future)"
     }
   ],
   "recent_sub_types": {

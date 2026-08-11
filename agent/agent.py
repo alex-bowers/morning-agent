@@ -235,7 +235,7 @@ def split_italian_section(section_text: str) -> tuple[str, str]:
             italian_lines.append(line)
 
     italian_text = "\n".join(italian_lines).strip()
-    english_text = "\n".join(english_lines).strip()
+    english_text = "\n\n".join(english_lines).strip()
 
     if not english_text:
         english_text = "(No translations available)"
