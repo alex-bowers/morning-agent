@@ -64,6 +64,7 @@ SLACK_CHANNEL_BRAIN_TEASER = os.getenv("SLACK_CHANNEL_BRAIN_TEASER")
 SLACK_CHANNEL_CALENDAR = os.getenv("SLACK_CHANNEL_CALENDAR")
 SLACK_CHANNEL_ITALIAN = os.getenv("SLACK_CHANNEL_ITALIAN")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
+MAX_AGENT_TURNS = 10
 
 REQUIRED_ENV_VARS = [
     "ANTHROPIC_API_KEY",
@@ -329,8 +330,13 @@ async def run_agent(
 
     logger.info("--- Starting agent loop ---")
 
-    while True:
-        logger.info("Sending %d message(s) to Claude…", len(messages))
+    for turn in range(1, MAX_AGENT_TURNS + 1):
+        logger.info(
+            "Sending %d message(s) to Claude (turn %d/%d)…",
+            len(messages),
+            turn,
+            MAX_AGENT_TURNS,
+        )
         response = anthropic_client.messages.create(
             model=ANTHROPIC_MODEL,
             max_tokens=2048,
@@ -344,6 +350,17 @@ async def run_agent(
             final_text = next(block.text for block in response.content if block.type == "text")
             logger.info("--- Final response from Claude ---\n%s", final_text)
             return final_text
+
+        if response.stop_reason == "max_tokens":
+            error_message = (
+                "Claude reached max_tokens before completing the response; "
+                "stopping to prevent the same request from being retried indefinitely."
+            )
+            raise RuntimeError(error_message)
+
+        if response.stop_reason != "tool_use":
+            error_message = f"Unexpected Claude stop reason: {response.stop_reason!r}"
+            raise RuntimeError(error_message)
 
         if response.stop_reason == "tool_use":
             messages.append(
@@ -386,6 +403,12 @@ async def run_agent(
                     "content": tool_results,
                 }
             )
+
+    error_message = (
+        f"Claude did not complete after {MAX_AGENT_TURNS} turns; "
+        "stopping to prevent unbounded API usage."
+    )
+    raise RuntimeError(error_message)
 
 
 async def main():
