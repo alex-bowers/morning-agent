@@ -6,6 +6,7 @@ Posts results to Slack channels:
     #calendar           -> via Bot API (calendar summary)
     #brain-teaser       -> via Bot API (brain teaser with thread answer)
     #italian-football   -> via Bot API (Italian headlines with English translations in thread)
+    #wishlist           -> via Bot API (wishlist items under the target price; quiet otherwise)
 
 Run with:
     python agent/agent.py
@@ -18,6 +19,11 @@ Requirements in .env:
     SLACK_CHANNEL_CALENDAR=C08XXXXXXXXX
     SLACK_CHANNEL_ITALIAN=C0BMACPHL3X
     SLACK_WEBHOOK_SPORTS=https://hooks.slack.com/services/...
+
+Optional (wishlist price watch):
+    WISHLIST_ID=XXXXXXXXXXXXX
+    SLACK_CHANNEL_WISHLIST=C08XXXXXXXXX
+    WISHLIST_TARGET_PRICE=1.00
 """
 
 import asyncio
@@ -25,6 +31,7 @@ import json
 import logging
 import os
 import sys
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import cast
 
@@ -43,13 +50,21 @@ from brain_teaser import (
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from price_watch import WishlistFetchError, find_items_below_target, format_price_alert
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
+# Full log to stdout (agent.log under launchd); warnings and errors are also
+# written to stderr (agent_error.log) so failures are easy to spot.
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setLevel(logging.WARNING)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout), _stderr_handler],
 )
+# httpx logs full request URLs at INFO, which would include the Slack webhook URL
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("morning_agent")
 
 load_dotenv()
@@ -63,6 +78,9 @@ SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL_BRAIN_TEASER = os.getenv("SLACK_CHANNEL_BRAIN_TEASER")
 SLACK_CHANNEL_CALENDAR = os.getenv("SLACK_CHANNEL_CALENDAR")
 SLACK_CHANNEL_ITALIAN = os.getenv("SLACK_CHANNEL_ITALIAN")
+SLACK_CHANNEL_WISHLIST = os.getenv("SLACK_CHANNEL_WISHLIST")
+WISHLIST_ID = os.getenv("WISHLIST_ID")
+WISHLIST_TARGET_PRICE = os.getenv("WISHLIST_TARGET_PRICE", "1.00")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 MAX_AGENT_TURNS = 10
 
@@ -339,7 +357,7 @@ async def run_agent(
         )
         response = anthropic_client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=2048,
+            max_tokens=4096,
             tools=cast(list, all_tools),
             messages=cast(list[MessageParam], messages),
         )
@@ -411,6 +429,92 @@ async def run_agent(
     raise RuntimeError(error_message)
 
 
+async def run_price_watch() -> None:
+    """Post wishlist items under the target price. Stays quiet when there are none."""
+    if not (WISHLIST_ID and SLACK_CHANNEL_WISHLIST):
+        logger.info("Wishlist price watch not configured — skipping")
+        return
+
+    try:
+        target_price = Decimal(WISHLIST_TARGET_PRICE)
+    except InvalidOperation:
+        target_price = Decimal("NaN")
+    if not target_price.is_finite() or target_price <= 0:
+        logger.error("WISHLIST_TARGET_PRICE %r is not a positive number — skipping", WISHLIST_TARGET_PRICE)
+        return
+
+    try:
+        items = await find_items_below_target(WISHLIST_ID, target_price)
+    except WishlistFetchError as e:
+        logger.error("Wishlist price check failed: %s", e)
+        post_message(SLACK_CHANNEL_WISHLIST, f"Wishlist price check failed today: {e}")
+        return
+    except Exception:
+        logger.exception("Unexpected error in wishlist price check")
+        post_message(SLACK_CHANNEL_WISHLIST, "Wishlist price check failed today. Check the agent logs.")
+        return
+
+    if not items:
+        logger.info("No wishlist items under £%.2f", target_price)
+        return
+
+    post_message(SLACK_CHANNEL_WISHLIST, format_price_alert(items, target_price))
+
+
+async def get_claude_response() -> str:
+    """Start the MCP servers and run the Claude agent loop, returning its final text."""
+    calendar_server_params = StdioServerParameters(
+        command=PYTHON_EXECUTABLE,
+        args=[CALENDAR_SERVER_SCRIPT],
+        env={**os.environ},
+    )
+
+    sports_server_params = StdioServerParameters(
+        command=PYTHON_EXECUTABLE,
+        args=[SPORTS_SERVER_SCRIPT],
+        env={**os.environ},
+    )
+
+    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    italian_server_params = StdioServerParameters(
+        command=PYTHON_EXECUTABLE,
+        args=[ITALIAN_SERVER_SCRIPT],
+        env={**os.environ},
+    )
+
+    logger.info("Connecting to calendar server…")
+    async with (
+        stdio_client(calendar_server_params, errlog=sys.stdout) as (cal_read, cal_write),
+        ClientSession(cal_read, cal_write) as calendar_session,
+    ):
+        await calendar_session.initialize()
+        logger.info("Connected to calendar server.")
+
+        logger.info("Connecting to sports highlights server…")
+        async with (
+            stdio_client(sports_server_params, errlog=sys.stdout) as (sports_read, sports_write),
+            ClientSession(sports_read, sports_write) as sports_session,
+        ):
+            await sports_session.initialize()
+            logger.info("Connected to sports highlights server.")
+
+            logger.info("Connecting to Italian headlines server…")
+            async with (
+                stdio_client(italian_server_params, errlog=sys.stdout) as (italian_read, italian_write),
+                ClientSession(italian_read, italian_write) as italian_session,
+            ):
+                await italian_session.initialize()
+                logger.info("Connected to Italian headlines server.")
+
+                return await run_agent(
+                    calendar_session,
+                    sports_session,
+                    italian_session,
+                    anthropic_client,
+                )
+
+
 async def main():
     logger.info("=== Morning Agent ===")
 
@@ -437,56 +541,15 @@ async def main():
             len(pool["teasers"]) - pool["next_index"],
         )
 
-    calendar_server_params = StdioServerParameters(
-        command=PYTHON_EXECUTABLE,
-        args=[CALENDAR_SERVER_SCRIPT],
-        env={**os.environ},
-    )
-
-    sports_server_params = StdioServerParameters(
-        command=PYTHON_EXECUTABLE,
-        args=[SPORTS_SERVER_SCRIPT],
-        env={**os.environ},
-    )
-
-    anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    italian_server_params = StdioServerParameters(
-        command=PYTHON_EXECUTABLE,
-        args=[ITALIAN_SERVER_SCRIPT],
-        env={**os.environ},
-    )
-
-    logger.info("Connecting to calendar server…")
-    async with (
-        stdio_client(calendar_server_params) as (cal_read, cal_write),
-        ClientSession(cal_read, cal_write) as calendar_session,
-    ):
-        await calendar_session.initialize()
-        logger.info("Connected to calendar server.")
-
-        logger.info("Connecting to sports highlights server…")
-        async with (
-            stdio_client(sports_server_params) as (sports_read, sports_write),
-            ClientSession(sports_read, sports_write) as sports_session,
-        ):
-            await sports_session.initialize()
-            logger.info("Connected to sports highlights server.")
-
-            logger.info("Connecting to Italian headlines server…")
-            async with (
-                stdio_client(italian_server_params) as (italian_read, italian_write),
-                ClientSession(italian_read, italian_write) as italian_session,
-            ):
-                await italian_session.initialize()
-                logger.info("Connected to Italian headlines server.")
-
-                final_text = await run_agent(
-                    calendar_session,
-                    sports_session,
-                    italian_session,
-                    anthropic_client,
-                )
+    # A Claude failure skips only the Claude-generated sections; the brain
+    # teaser and wishlist price watch don't depend on Claude and still post.
+    claude_failed = False
+    try:
+        final_text = await get_claude_response()
+    except Exception:
+        logger.exception("Claude step failed — skipping sports, calendar and Italian posts")
+        claude_failed = True
+        final_text = ""
 
     logger.info("--- Posting to Slack ---")
     sections = parse_sections(final_text)
@@ -530,6 +593,14 @@ async def main():
     # Save pool state (marks this teaser as consumed)
     if pool.get("teasers"):
         save_pool(pool)
+
+    # Wishlist price watch (no Claude needed)
+    await run_price_watch()
+
+    if claude_failed:
+        # Exit non-zero so the scheduler still records the run as failed
+        logger.error("=== Done with errors (Claude step failed) ===")
+        sys.exit(1)
 
     logger.info("=== Done ===")
 

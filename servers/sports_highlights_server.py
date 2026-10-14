@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 from mcp.server import MCPServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# httpx logs full request URLs at INFO, which would include the YouTube API key
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("sports_highlights_server")
 
 load_dotenv()

@@ -8,6 +8,7 @@ An AI-powered daily briefing agent that posts morning updates to Slack. It uses 
 - **Calendar summary** — Fetches today's Google Calendar events and posts a clear summary.
 - **Brain teaser** — Picks a pre-generated teaser from a pool and posts the question, with the answer hidden in a Slack thread reply.
 - **Italian football headlines** — Fetches recent Italian-language calcio headlines from Google News RSS and posts them with English translations in a Slack thread reply.
+- **Wishlist price watch** — Checks a public Amazon UK wishlist and posts any items priced under a target (default £1.00). Posts nothing when no items are under target.
 
 ## How it works
 
@@ -25,6 +26,7 @@ An AI-powered daily briefing agent that posts morning updates to Slack. It uses 
 │  6. Parse sections → post to Slack channels                     │
 │  7. Post brain teaser (question + thread reply with answer)     │
 │  8. Record teaser in memory, save pool state                    │
+│  9. Check wishlist prices → post items under target             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -46,6 +48,7 @@ The agent connects to three MCP servers over stdio and presents their tools to C
 | `##CALENDAR##` | `#calendar` | Bot API (`SLACK_BOT_TOKEN`) |
 | `##ITALIAN##` | `#italian-football` | Bot API with thread reply (Italian headlines + English translations) |
 | Brain teaser | `#brain-teaser` | Bot API with thread reply |
+| Wishlist price watch | `#wishlist` | Bot API (only when items are under target) |
 
 ## Project structure
 
@@ -53,6 +56,7 @@ The agent connects to three MCP servers over stdio and presents their tools to C
 agent/
 ├── agent.py                    # Main agent — MCP client loop, Claude orchestration, Slack posting
 ├── brain_teaser.py             # Pool management — load/save pool, get next teaser, memory/audit trail
+├── price_watch.py              # Wishlist price watch — fetch Amazon wishlist, find items under target
 ├── generate_teaser_pool.py     # Batch generation script — generates ~60 teasers via Claude API
 ├── brain_teaser_memory.json    # Audit trail + cross-batch dedup history (auto-managed)
 ├── teaser_pool.json            # Pre-generated pool of teasers (consumed daily, auto-managed)
@@ -135,6 +139,29 @@ Fetches recent Italian-language football (calcio) headlines for language learner
 **Slack posting:** The Italian section is split — Italian headlines go in the main message, English translations (lines prefixed with `EN:`) go in a thread reply. This mirrors the brain teaser pattern (question in main message, answer in thread).
 
 The RSS feed uses exponential backoff retries (3 attempts) on server errors.
+
+## Wishlist price watch
+
+`agent/price_watch.py` checks a public Amazon UK wishlist once per run and reports every item priced below a single target price. It runs after the brain teaser and does not use Claude or MCP — comparing prices needs no reasoning.
+
+### How it works
+
+1. Fetches `https://www.amazon.co.uk/hz/wishlist/ls/<WISHLIST_ID>` with `httpx`.
+2. Follows the wishlist's "show more" URL (the request the browser makes as you scroll) until Amazon includes its end-of-list marker. A cap of 20 pages stops runaway pagination.
+3. Extracts each item's ASIN (Amazon product ID), title and current price.
+4. Posts every item priced strictly below `WISHLIST_TARGET_PRICE` to `#wishlist`, cheapest first, with a link to each product.
+
+No state is kept between runs, so an item is posted every day while its price stays below the target. Nothing is posted when no items are below the target. Items without a current price (for example, unavailable items) are skipped and logged.
+
+### Requirements
+
+- The wishlist must be public (shared as "Public" in Amazon's list settings).
+- The Slack bot must be a member of the `#wishlist` channel.
+- The feature is skipped unless both `WISHLIST_ID` and `SLACK_CHANNEL_WISHLIST` are set.
+
+### Limitations
+
+This reads Amazon's public web page rather than an official API, so it can break if Amazon changes the page layout or starts blocking requests. Amazon's terms of use restrict automated access; one check a day of your own list keeps the load minimal. When the check fails, a short failure message is posted to `#wishlist` rather than failing silently.
 
 ## Brain teaser system
 
@@ -226,6 +253,9 @@ Medium : Hard = 3 : 1
    | `LOCAL_TIMEZONE` | No | Timezone for calendar events (default: `Europe/London`) |
    | `MIN_DURATION_SECONDS` | No | Minimum YouTube video length in seconds (default: `300`) |
    | `ITALIAN_NUM_HEADLINES` | No | Number of Italian headlines to fetch (default: `3`) |
+   | `WISHLIST_ID` | No | Amazon UK wishlist ID — the code after `/hz/wishlist/ls/` in the list URL. Enables the price watch. |
+   | `SLACK_CHANNEL_WISHLIST` | No | Channel ID for wishlist price alerts. Enables the price watch. |
+   | `WISHLIST_TARGET_PRICE` | No | Post items priced below this amount in pounds (default: `1.00`) |
 
 3. **Google Calendar OAuth:**
    - Download `credentials.json` from the [Google Cloud Console](https://console.cloud.google.com/) with the Calendar read-only scope.
@@ -254,6 +284,20 @@ Medium : Hard = 3 : 1
 | `#calendar` | Today's calendar events summary | Bot API |
 | `#brain-teaser` | Daily brain teaser (answer in thread reply) | Bot API |
 | `#italian-football` | Italian calcio headlines (English translations in thread reply) | Bot API with thread reply |
+| `#wishlist` | Wishlist items under the target price (nothing when none are) | Bot API |
+
+## Logs
+
+When the agent runs on its launchd schedule, output is written to two files in `agent/`:
+
+| File | Contents |
+|---|---|
+| `agent.log` | The full log: every INFO, WARNING and ERROR line from the agent and the MCP servers |
+| `agent_error.log` | Warnings, errors and tracebacks from the agent only — check this first when a run fails |
+
+Warnings from the MCP servers appear only in `agent.log`. When you run `agent.py` in a terminal, warnings and errors are shown twice because both streams go to the screen.
+
+`httpx` request logging is turned off in the agent and the sports server, because the request URLs would otherwise expose the Slack webhook URL and the YouTube API key.
 
 ## Error handling
 
@@ -263,3 +307,4 @@ Medium : Hard = 3 : 1
 - **Atomic writes** — Pool and memory files are written to a `.tmp` file first, then atomically renamed, to prevent corruption from partial writes.
 - **YouTube scoring fallback** — If no videos meet the minimum duration threshold, the server returns no highlight rather than a short clip.
 - **RSS feed retries** — The Italian headlines server uses exponential backoff with 3 retries for server errors (5xx), matching the same pattern as the sports server.
+- **Wishlist fetch failures** — Amazon requests retry server and network errors 3 times with a longer backoff (15s, then 30s) because Amazon rate-limits with 503 responses. A CAPTCHA page, a client error (4xx) or a wishlist with no recognisable items posts a short failure message to `#wishlist`. A price watch failure never stops the other posts.
